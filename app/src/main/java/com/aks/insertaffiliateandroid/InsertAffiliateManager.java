@@ -20,11 +20,16 @@ import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 public class InsertAffiliateManager {
-    private final ReceiptVerificationCredentials receiptVerificationCredentials;
+    private ReceiptVerificationCredentials receiptVerificationCredentials;
     private String message = null;
+    private Context context;
 
     public InsertAffiliateManager(Context context, ReceiptVerificationCredentials credentials) {
         this.receiptVerificationCredentials = credentials;
+    }
+
+    public InsertAffiliateManager(Context context) {
+        this.context = context;
     }
 
     // TODO: can we make this private function and add our own on init call for this when the package is init so that the user just has to add to app delegate or something a call to us?
@@ -61,7 +66,7 @@ public class InsertAffiliateManager {
         return sb.toString();
     }
 
-    private static String getReflink(Activity activity) {
+    public static String getReflink(Activity activity) {
         SharedPreferences sharedPreferences
                 = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
         );
@@ -133,7 +138,7 @@ public class InsertAffiliateManager {
             Api api = retrofit.create(Api.class);
 
             String yourIapticAuthHeader = receiptVerificationCredentials.getAppName() + ":" + receiptVerificationCredentials.getSecretKey();
-            String baseauth = android.util.Base64.encodeToString(yourIapticAuthHeader.getBytes(), Base64.NO_WRAP);
+            String baseauth = Base64.encodeToString(yourIapticAuthHeader.getBytes(), Base64.NO_WRAP);
             Call<JsonObject> call = api.validaterec(jsonParams, "Basic " + baseauth);
             call.enqueue(new Callback<JsonObject>() {
                 public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
