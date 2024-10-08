@@ -20,13 +20,8 @@ import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 public class InsertAffiliateManager {
-    private ReceiptVerificationCredentials receiptVerificationCredentials;
+    private final Context context;
     private String message = null;
-    private Context context;
-
-    public InsertAffiliateManager(Context context, ReceiptVerificationCredentials credentials) {
-        this.receiptVerificationCredentials = credentials;
-    }
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
@@ -92,16 +87,14 @@ public class InsertAffiliateManager {
         editor.commit();
     }
 
-    private boolean hasReceiptVerificationCredentials() {
-        return this.receiptVerificationCredentials != null;
-    }
-
     public void init(Activity activity) {
         saveUniqueInsertAffiliateId(activity);
     }
 
     public String callApiForValidate(
             Activity activity,
+            String appname,
+            String secretkey,
             String subscriptionId, // TODO: Retrieve & pass this from the purchase, don't pass in strings.xml (delete todo after completion)
             String purchaseId,
             String purchaseToken,
@@ -109,52 +102,48 @@ public class InsertAffiliateManager {
             String signature
     ) {
 
-        if (hasReceiptVerificationCredentials()) {
-            JsonObject jsonParams = new JsonObject();
-            JsonObject objTrans = new JsonObject();
-            JsonObject objAddData = new JsonObject();
+        JsonObject jsonParams = new JsonObject();
+        JsonObject objTrans = new JsonObject();
+        JsonObject objAddData = new JsonObject();
 
-            objTrans.addProperty("type", "android-playstore");
-            objTrans.addProperty("id", purchaseId);
-            objTrans.addProperty("purchaseToken", purchaseToken);
-            objTrans.addProperty("receipt", receipt);
-            objTrans.addProperty("signature", signature);
+        objTrans.addProperty("type", "android-playstore");
+        objTrans.addProperty("id", purchaseId);
+        objTrans.addProperty("purchaseToken", purchaseToken);
+        objTrans.addProperty("receipt", receipt);
+        objTrans.addProperty("signature", signature);
 
-            objAddData.addProperty("applicationUsername",
-                    getReflink(activity));
+        objAddData.addProperty("applicationUsername",
+                getReflink(activity));
 
-            jsonParams.addProperty("id", subscriptionId);
-            jsonParams.addProperty("type", "paid subscription");
-            jsonParams.add("transaction", objTrans);
-            jsonParams.add("additionalData", objAddData);
+        jsonParams.addProperty("id", subscriptionId);
+        jsonParams.addProperty("type", "paid subscription");
+        jsonParams.add("transaction", objTrans);
+        jsonParams.add("additionalData", objAddData);
 
-            Retrofit retrofit = new Retrofit.Builder()
-                    .baseUrl(Api.BASE_URL) // TODO: what is this and why is it stored in an xml? Doesn't this need to point to Iaptics servers, not ours?
-                    .client(new OkHttpClient.Builder().build())
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .addConverterFactory(ScalarsConverterFactory.create())
-                    .build();
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(Api.BASE_URL) // TODO: what is this and why is it stored in an xml? Doesn't this need to point to Iaptics servers, not ours?
+                .client(new OkHttpClient.Builder().build())
+                .addConverterFactory(GsonConverterFactory.create())
+                .addConverterFactory(ScalarsConverterFactory.create())
+                .build();
 
-            Api api = retrofit.create(Api.class);
+        Api api = retrofit.create(Api.class);
 
-            String yourIapticAuthHeader = receiptVerificationCredentials.getAppName() + ":" + receiptVerificationCredentials.getSecretKey();
-            String baseauth = Base64.encodeToString(yourIapticAuthHeader.getBytes(), Base64.NO_WRAP);
-            Call<JsonObject> call = api.validaterec(jsonParams, "Basic " + baseauth);
-            call.enqueue(new Callback<JsonObject>() {
-                public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
-                    Log.i("InsertAffiliate TAG", "Receipt Validated Successfully");
-                    message = "Success";
-                }
+        String yourIapticAuthHeader = appname + ":" + secretkey;
+        String baseauth = Base64.encodeToString(yourIapticAuthHeader.getBytes(), Base64.NO_WRAP);
+        Call<JsonObject> call = api.validaterec(jsonParams, "Basic " + baseauth);
+        call.enqueue(new Callback<JsonObject>() {
+            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
+                Log.i("InsertAffiliate TAG", "Receipt Validated Successfully");
+                message = "Success";
+            }
 
-                public void onFailure(Call<JsonObject> call, Throwable t) {
-                    Log.i("InsertAffiliate TAG", "Error While Validating Receipt");
-                    message = "Error";
-                }
-            });
-        } else {
-            message = "Please provide app name and secret key from iaptic";
-            // TODO: notify user that they have not initialised our package with the receipt verificaiton credentials required. Perhaps the package should REQUIRE these params to work otherwise throw an error
-        }
+            public void onFailure(Call<JsonObject> call, Throwable t) {
+                Log.i("InsertAffiliate TAG", "Error While Validating Receipt");
+                message = "Error";
+            }
+        });
+
         return message;
     }
 }
