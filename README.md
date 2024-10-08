@@ -35,7 +35,7 @@ Step 2. Add the dependency
 
 ```bash
 dependencies {
-	        implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.0'
+	        implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.1'
 }
 ```
 
