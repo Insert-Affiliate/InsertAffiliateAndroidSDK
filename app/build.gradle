@@ -8,9 +8,16 @@ android {
 
     defaultConfig {
         minSdk 24
-
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
+    }
+
+    android {
+        publishing {
+            singleVariant("release") {
+                withSourcesJar()
+            }
+        }
     }
 
     buildTypes {
@@ -20,10 +27,24 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = 'com.aks.insertaffiliateandroid'
+                artifactId = 'InsertAffiliateAndroidSDK'
+                version = '1.0.0'
+            }
+        }
+    }
+}
+
 
 dependencies {
     implementation libs.appcompat
