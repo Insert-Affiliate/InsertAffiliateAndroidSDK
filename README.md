@@ -191,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-Step 4. Edit Manifest File And Add Branch Io Link In Launcher File
+Step 4. Edit Manifest File And Add Branch Io Link
 
 ```bash
 <?xml version="1.0" encoding="utf-8"?>
