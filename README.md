@@ -1,6 +1,6 @@
 # Insert Affiliate SDK
 
-A brief description of your SDK, its purpose, and what it offers.
+The **InsertAffiliateAndroid SDK** is designed for Android applications, providing seamless integration with the [Insert Affiliate platform](https://insertaffiliate.com). This SDK enables functionalities such as managing affiliate links, handling in-app purchases (IAP), and utilizing deep links. For more details and to access the Insert Affiliate dashboard, visit [app.insertaffiliate.com](https://app.insertaffiliate.com).
 
 ## Table of Contents
 
@@ -10,8 +10,9 @@ A brief description of your SDK, its purpose, and what it offers.
    
 ## Features
 
-- List the key features of your SDK.
-- Highlight any unique aspects or functionalities.
+- **Unique Device Identification**: Generates and stores a short unique device ID to identify users effectively.
+- **Affiliate Identifier Management**: Set and retrieve the affiliate identifier based on user-specific links.
+- **In-App Purchase (IAP) Initialisation**: Easily reinitialise in-app purchases with validation options using the affiliate identifier.
 
 ## Installation
 
@@ -37,14 +38,14 @@ In your module's build.gradle, add the SDK dependency:
 
 ```java
 dependencies {
-    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.1'
 }
 ```
 
 ## In-App Purchase Setup
-### Step 1: Initialize the InsertAffiliateManager in `MainActivity`
+### Step 1: Initialise the InsertAffiliateManager in `MainActivity`
 
-In your `MainActivity`, add the following code to initialize the `InsertAffiliateManager` and set up your in-app purchases:
+In your `MainActivity`, add the following code to initialise the `InsertAffiliateManager` and set up your in-app purchases:
 
 ```java
 public class MainActivity extends AppCompatActivity {
@@ -59,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        // Initialize InsertAffiliateManager in the main activity
+        // Initialise InsertAffiliateManager in the main activity
         insertAffiliateManager = new InsertAffiliateManager(MainActivity.this);
         insertAffiliateManager.init(MainActivity.this);
 
@@ -139,9 +140,9 @@ dependencies {
 }
 ```
 
-### Step 2: Enable Auto-Initialization of Branch.io in the Application Class
+### Step 2: Enable Auto-Initialisation of Branch.io in the Application Class
 
-Create or modify your `Application` class to automatically initialize Branch.io when your app starts:
+Create or modify your `Application` class to automatically initialise Branch.io when your app starts:
 
 ```java
 import android.app.Application;
