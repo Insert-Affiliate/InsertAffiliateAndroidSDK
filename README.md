@@ -15,33 +15,39 @@ A brief description of your SDK, its purpose, and what it offers.
 
 ## Installation
 
-Instructions on how to install the SDK. Include different methods if applicable (e.g., Maven, Gradle, manual download).
+Follow the steps below to install the SDK. You can use different methods depending on your project setup (e.g., Gradle, Maven, or manual download).
 
-Step 1. Add the JitPack repository to your build file
+### Step 1: Add the JitPack repository
 
-Add it in your root build.gradle at the end of repositories:
+In your root `build.gradle`, add the JitPack repository to the `repositories` section:
 
-```bash
+```java
 dependencyResolutionManagement {
-		repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-		repositories {
-			mavenCentral()
-			maven { url 'https://jitpack.io' }
-		}
-	}
- ```
-
-Step 2. Add the dependency
-
-```bash
-dependencies {
-	        implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.1'
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
 }
 ```
 
-## In App Purchase Setup
+### Step 2. Add the SDK dependency
 
-```bash
+In your module's build.gradle, add the SDK dependency:
+
+```java
+dependencies {
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK'
+}
+```
+
+## In-App Purchase Setup
+### Step 1: Initialize the InsertAffiliateManager in `MainActivity`
+
+In your `MainActivity`, add the following code to initialize the `InsertAffiliateManager` and set up your in-app purchases:
+
+
+```java
 public class MainActivity extends AppCompatActivity {
     SharedPreferences sharedPreferences;
     InsertAffiliateManager insertAffiliateManager;
@@ -54,39 +60,43 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        //Copy This code to your main activity
+        // Initialize InsertAffiliateManager in the main activity
         insertAffiliateManager = new InsertAffiliateManager(MainActivity.this);
         insertAffiliateManager.init(MainActivity.this);
 
 }
 ```
-~ In App Purchase Update (Call callApiForValidate method when user purchase was done successfully)
-```bash
+
+## Step 2: Handle the In-App Purchase and Validate
+
+After a user makes a successful purchase, you need to verify and acknowledge the purchase. Add this code in your `InAppFragment` to handle the purchase flow and validate it through `InsertAffiliateManager`:
+
+```java
 public class InAppFragment extends Fragment {
     InsertAffiliateManager insertAffiliateManager;
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         root = inflater.inflate(R.layout.fragment_home, container, false);
         insertAffiliateManager = new InsertAffiliateManager(getActivity());
 
-	BillingClient billingClient = BillingClient.newBuilder(this)
-                .enablePendingPurchases()
-                .setListener(
-                        new PurchasesUpdatedListener() {
-                            @Override
-                            public void onPurchasesUpdated(@NonNull BillingResult billingResult, @Nullable List<Purchase> list) {
-                               if(billingResult.getResponseCode()==BillingClient.BillingResponseCode.OK && list !=null) {
-                                   for (Purchase purchase: list){
-                                       verifySubPurchase(purchase);
-                                   }
-                               }
+        // Set up the BillingClient to listen for purchase updates
+        BillingClient billingClient = BillingClient.newBuilder(this)
+            .enablePendingPurchases()
+            .setListener(
+                new PurchasesUpdatedListener() {
+                    @Override
+                    public void onPurchasesUpdated(@NonNull BillingResult billingResult, @Nullable List<Purchase> list) {
+                        if(billingResult.getResponseCode()==BillingClient.BillingResponseCode.OK && list !=null) {
+                            for (Purchase purchase: list){
+                                verifySubPurchase(purchase); // Validate the purchase
                             }
                         }
-                ).build();
-}
+                    }
+                }
+            ).build();
+    }
 
-void verifySubPurchase(Purchase purchases) {
-
+    // Method to verify the purchase and acknowledge it
+    void verifySubPurchase(Purchase purchases) {
         AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams
                 .newBuilder()
                 .setPurchaseToken(purchases.getPurchaseToken())
@@ -94,40 +104,42 @@ void verifySubPurchase(Purchase purchases) {
 
         billingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult -> {
             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    String orderId = purchases.getOrderId();
+                String orderId = purchases.getOrderId();
 
-                insertAffiliateManager.callApiForValidate(getActivity(),
-                            getActivity().getPackageName(),
-                            "Iaptic Secret Key",
-                            purchases.getProduct(), // Subscription Id
-                            orderId, // Order Id
-                            purchases.getPurchaseToken(), // Purchase Token
-                            purchases.getOriginalJson(), // Orignal JSON Data
-                            purchases.getSignature()); // Purchase Signature
-
+                // Call API to validate the purchase
+                insertAffiliateManager.callApiForValidate(
+                    getActivity(),
+                    getActivity().getPackageName(),
+                    "Iaptic Secret Key",
+                    purchases.getProduct(), // Subscription Id
+                    orderId, // Order Id
+                    purchases.getPurchaseToken(), // Purchase Token
+                    purchases.getOriginalJson(), // Orignal JSON Data
+                    purchases.getSignature()); // Purchase Signature
 				}
         });
-
     }
-
 }
 ```
 
 ## Deep Link Setup
 
-Step 1. Add the dependency
+### Step 1: Add the Deep Linking Platform Dependency
 
-```bash
+In this example, the deep linking functionality is implemented using Branch.io. Add the following dependency to your build.gradle file.
+
+```java
 dependencies {
-    implementation 'io.branch.sdk.android:library:5.8.0' // Check for latest version before hard-coding
+    implementation 'io.branch.sdk.android:library'
 }
 ```
 
-Step 2. Enable Auto Instance Of Branch Io On Your Application Class
+### Step 2: Enable Auto-Initialization of Branch.io in the Application Class
 
-```bash
+Create or modify your `Application` class to automatically initialize Branch.io when your app starts:
+
+```java
 import android.app.Application;
-
 import io.branch.referral.Branch;
 
 public class InsertAffiliateApp extends Application {
@@ -140,9 +152,11 @@ public class InsertAffiliateApp extends Application {
 }
 ```
 
-Step 3. Start Session For Branch Io And Pass Unique Id Of User For Session
+### Step 3: Start Branch.io Session and Pass User's Unique ID
 
-```bash
+In your `MainActivity`, start a Branch.io session when the app is opened, and pass the user's unique ID for tracking. Add the following code in the `onStart()` method:
+
+```java
 public class MainActivity extends AppCompatActivity {
     InsertAffiliateManager insertAffiliateManager;
     private ActivityMainBinding binding;
@@ -161,15 +175,19 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        // Set user metadata for Branch session
         Branch.getInstance().setRequestMetadata("$analytics_visitor_id", InsertAffiliateManager.getUniqueId(MainActivity.this));
+
+        // Start Branch session and handle deep link callbacks
         Branch.sessionBuilder(this).withCallback(new Branch.BranchUniversalReferralInitListener() {
             @Override
             public void onInitFinished(BranchUniversalObject branchUniversalObject, LinkProperties linkProperties, BranchError error) {
                 if (error == null && branchUniversalObject != null) {
                     try {
+                        // Save the referring link from the deep link data
                         InsertAffiliateManager.saveReferLink(MainActivity.this, "" + branchUniversalObject.getContentMetadata().convertToJson().get("~referring_link"));
                     } catch (JSONException e) {
-                        // TODO: Handle exception if desired
+                        // Handle exception if necessary
                     }
                 }
             }
@@ -181,97 +199,4 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
     }
 }
-```
-
-Step 4. Edit Manifest File And Add Branch Io Link
-
-```bash
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
-    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
-    <uses-feature android:name="android.hardware.telephony" android:required="false" />
-
-    <application
-        android:name=".InsertAffiliateApp"
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.Insertaffiliate"
-        android:usesCleartextTraffic="true"
-        tools:targetApi="31">
-        <activity
-            android:name=".SplashScreen"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-
-        </activity>
-        <activity
-            android:name=".MainActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
-            android:exported="true"
-            android:label="@string/app_name">
-
-            <intent-filter>
-                <!-- If utilizing $deeplink_path please explicitly declare your hosts, or utilize a wildcard(*) -->
-                <!-- REPLACE `android:scheme` with your Android URI scheme -->
-                <data
-                    android:host="open"
-                    android:scheme="Domain Name" />
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-            </intent-filter>
-
-            <!-- Branch App Links - Live App -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <!-- REPLACE `android:host` with your `app.link` domain -->
-                <data
-                    android:host="Insert Your Branch Io Domain URL"
-                    android:scheme="https" />
-                <!-- REPLACE `android:host` with your `-alternate` domain (required for proper functioning of App Links and Deepviews) -->
-                <data
-                    android:host="Insert Your Branch Io Domain URL"
-                    android:scheme="https" />
-            </intent-filter>
-            <meta-data
-                android:name="android.webkit.WebView.EnableSafeBrowsing"
-                android:value="true" />
-        </activity>
-
-        <meta-data
-            android:name="io.branch.sdk.BranchKey"
-            android:value="Branch Io Key" />
-        <meta-data
-            android:name="io.branch.sdk.TestMode"
-            android:value="false" />
-    </application>
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.SEND" />
-            <data android:mimeType="text/plain" />
-        </intent>
-    </queries>
-</manifest>
 ```
