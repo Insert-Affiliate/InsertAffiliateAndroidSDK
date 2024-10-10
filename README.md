@@ -144,7 +144,6 @@ Step 3. Start Session For Branch Io And Pass Unique Id Of User For Session
 
 ```bash
 public class MainActivity extends AppCompatActivity {
-    SharedPreferences sharedPreferences;
     InsertAffiliateManager insertAffiliateManager;
     private ActivityMainBinding binding;
 
