@@ -95,7 +95,7 @@ public class InsertAffiliateManager {
             Activity activity,
             String appname,
             String secretkey,
-            String subscriptionId, // TODO: Retrieve & pass this from the purchase, don't pass in strings.xml (delete todo after completion)
+            String subscriptionId,
             String purchaseId,
             String purchaseToken,
             String receipt,

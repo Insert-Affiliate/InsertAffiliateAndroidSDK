@@ -46,7 +46,6 @@ dependencies {
 
 In your `MainActivity`, add the following code to initialize the `InsertAffiliateManager` and set up your in-app purchases:
 
-
 ```java
 public class MainActivity extends AppCompatActivity {
     SharedPreferences sharedPreferences;
@@ -69,7 +68,12 @@ public class MainActivity extends AppCompatActivity {
 
 ## Step 2: Handle the In-App Purchase and Validate
 
-After a user makes a successful purchase, you need to verify and acknowledge the purchase. Add this code in your `InAppFragment` to handle the purchase flow and validate it through `InsertAffiliateManager`:
+After a user makes a successful purchase, you need to verify and acknowledge the purchase. Add this code in your `InAppFragment` to handle the purchase flow and validate it through `InsertAffiliateManager`.
+
+- Replace `{{ your_iaptic_app_name }}` with your **Iaptic App Name**. You can find this [here](https://www.iaptic.com/account).
+- Replace `{{ your_iaptic_secret_key }}` with your **Iaptic Secret Key**. You can find this [here](https://www.iaptic.com/settings).
+
+Here's the code with placeholders for you to swap out:
 
 ```java
 public class InAppFragment extends Fragment {
@@ -98,9 +102,9 @@ public class InAppFragment extends Fragment {
     // Method to verify the purchase and acknowledge it
     void verifySubPurchase(Purchase purchases) {
         AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams
-                .newBuilder()
-                .setPurchaseToken(purchases.getPurchaseToken())
-                .build();
+            .newBuilder()
+            .setPurchaseToken(purchases.getPurchaseToken())
+            .build();
 
         billingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult -> {
             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
@@ -109,14 +113,15 @@ public class InAppFragment extends Fragment {
                 // Call API to validate the purchase
                 insertAffiliateManager.callApiForValidate(
                     getActivity(),
-                    getActivity().getPackageName(),
-                    "Iaptic Secret Key",
-                    purchases.getProduct(), // Subscription Id
-                    orderId, // Order Id
-                    purchases.getPurchaseToken(), // Purchase Token
-                    purchases.getOriginalJson(), // Orignal JSON Data
-                    purchases.getSignature()); // Purchase Signature
-				}
+                    "{{ your_iaptic_app_name }}",
+                    "{{ your_iaptic_secret_key }}",
+                    purchases.getProduct(),
+                    orderId,
+                    purchases.getPurchaseToken(),
+                    purchases.getOriginalJson(),
+                    purchases.getSignature()
+                );
+            }
         });
     }
 }
