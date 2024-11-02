@@ -1,5 +1,17 @@
 package com.aks.insertaffiliateandroid;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
+import java.security.SecureRandom;
+import java.util.function.Consumer;
+import java.net.URLEncoder;
+import java.awt.Desktop;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -25,6 +37,42 @@ public class InsertAffiliateManager {
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
+    }
+
+    public static void trackEvent(String eventName) {
+        String deepLinkParam = getUniqueId(null); // Use appropriate context or change as needed
+        if (deepLinkParam == null) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            return;
+        }
+
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("eventName", eventName);
+            payload.put("deepLinkParam", deepLinkParam);
+            byte[] jsonData = payload.toString().getBytes(StandardCharsets.UTF_8);
+
+            String apiUrlString = "https://api.insertaffiliate.com/v1/trackEvent";
+            URL apiUrl = new URL(apiUrlString);
+            HttpURLConnection connection = (HttpURLConnection) apiUrl.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+
+            try (OutputStream outputStream = connection.getOutputStream()) {
+                outputStream.write(jsonData);
+                outputStream.flush();
+            }
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == 200) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Event tracked successfully");
+            } else {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Failed to track event with status code: " + responseCode);
+            }
+        } catch (Exception e) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Error tracking event: " + e.getMessage());
+        }
     }
 
     // TODO: can we make this private function and add our own on init call for this when the package is init so that the user just has to add to app delegate or something a call to us?
