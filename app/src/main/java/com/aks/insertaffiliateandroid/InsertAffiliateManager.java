@@ -39,8 +39,8 @@ public class InsertAffiliateManager {
         this.context = context;
     }
 
-    public static void trackEvent(String eventName) {
-        String deepLinkParam = getUniqueId(null); // Use appropriate context or change as needed
+    public static void trackEvent(Activity activity, String eventName) {
+        String deepLinkParam = getUniqueId(activity);
         if (deepLinkParam == null) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
             return;
@@ -75,7 +75,6 @@ public class InsertAffiliateManager {
         }
     }
 
-    // TODO: can we make this private function and add our own on init call for this when the package is init so that the user just has to add to app delegate or something a call to us?
     private static void saveUniqueInsertAffiliateId(Activity activity) {
         SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
         String savedAndroidId = sharedPreferences.getString("deviceid", null);
@@ -118,7 +117,6 @@ public class InsertAffiliateManager {
         return referring_link + "/" + uniqueId;
     }
 
-    // TODO: Note - these methods probably have to stay public as I don't want to import the Branch.io SDK into our app due to separation of concerns (delete comment once you have taken note of this)
     public static String getUniqueId(Activity activity) {
         SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
         return sharedPreferences.getString("deviceid", null);
@@ -169,7 +167,7 @@ public class InsertAffiliateManager {
         jsonParams.add("additionalData", objAddData);
 
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(Api.BASE_URL) // TODO: what is this and why is it stored in an xml? Doesn't this need to point to Iaptics servers, not ours?
+                .baseUrl(Api.BASE_URL)
                 .client(new OkHttpClient.Builder().build())
                 .addConverterFactory(GsonConverterFactory.create())
                 .addConverterFactory(ScalarsConverterFactory.create())
