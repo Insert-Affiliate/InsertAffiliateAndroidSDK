@@ -39,40 +39,49 @@ public class InsertAffiliateManager {
         this.context = context;
     }
 
-    public static void trackEvent(Activity activity, String eventName) {
-        String deepLinkParam = getUniqueId(activity);
+    public static String trackEvent(Activity activity, String eventName) {
+        String deepLinkParam = getUniqueId(null);
         if (deepLinkParam == null) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
-            return;
+            return "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events by opening a link from an affiliate.";
         }
 
-        try {
-            JSONObject payload = new JSONObject();
-            payload.put("eventName", eventName);
-            payload.put("deepLinkParam", deepLinkParam);
-            byte[] jsonData = payload.toString().getBytes(StandardCharsets.UTF_8);
+        JsonObject jsonParams = new JsonObject();
+        jsonParams.addProperty("eventName", eventName);
+        jsonParams.addProperty("deepLinkParam", deepLinkParam);
 
-            String apiUrlString = "https://api.insertaffiliate.com/v1/trackEvent";
-            URL apiUrl = new URL(apiUrlString);
-            HttpURLConnection connection = (HttpURLConnection) apiUrl.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setDoOutput(true);
+        Retrofit retrofit = new Retrofit.Builder()
+            .baseUrl(Api.BASE_URL_INSERT_AFFILIATE)
+            .client(new OkHttpClient.Builder().build())
+            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(ScalarsConverterFactory.create())
+            .build();
 
-            try (OutputStream outputStream = connection.getOutputStream()) {
-                outputStream.write(jsonData);
-                outputStream.flush();
+        Api api = retrofit.create(Api.class);
+
+        Call<JsonObject> call = api.trackevent(jsonParams);
+
+        call.enqueue(new Callback<JsonObject>() {
+            public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
+                int responseCode = response.code();
+                Log.d("InsertAffiliate response: ", "" + response.body());
+
+                if (responseCode == 200) {
+                    responseMessage = "[Insert Affiliate] Track Event Success";
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Event tracked successfully");
+                } else {
+                    responseMessage = "[Insert Affiliate] Failed to track event with status code: " + responseCode;
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Failed to track event with status code: " + responseCode);
+                }
             }
 
-            int responseCode = connection.getResponseCode();
-            if (responseCode == 200) {
-                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Event tracked successfully");
-            } else {
-                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Failed to track event with status code: " + responseCode);
+            public void onFailure(Call<JsonObject> call, Throwable t) {
+                Log.i("InsertAffiliate TAG", "Error While Validating Receipt");
+                responseMessage = "Error";
             }
-        } catch (Exception e) {
-            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Error tracking event: " + e.getMessage());
-        }
+        });
+
+        return responseMessage;
     }
 
     private static void saveUniqueInsertAffiliateId(Activity activity) {
