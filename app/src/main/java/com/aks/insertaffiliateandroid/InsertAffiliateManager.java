@@ -40,7 +40,7 @@ public class InsertAffiliateManager {
     }
 
     public static String trackEvent(Activity activity, String eventName) {
-        String deepLinkParam = getUniqueId(null);
+        String deepLinkParam = getReflink(activity);
         if (deepLinkParam == null) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
             return "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events by opening a link from an affiliate.";
