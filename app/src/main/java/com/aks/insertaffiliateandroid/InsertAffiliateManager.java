@@ -48,7 +48,12 @@ public class InsertAffiliateManager {
 
         JsonObject jsonParams = new JsonObject();
         jsonParams.addProperty("eventName", eventName);
-        jsonParams.addProperty("deepLinkParam", deepLinkParam);
+        
+        try {
+            jsonParams.addProperty("deepLinkParam", URLEncoder.encode(deepLinkParam, StandardCharsets.UTF_8.toString()));
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
 
         Retrofit retrofit = new Retrofit.Builder()
             .baseUrl(Api.BASE_URL_INSERT_AFFILIATE)
