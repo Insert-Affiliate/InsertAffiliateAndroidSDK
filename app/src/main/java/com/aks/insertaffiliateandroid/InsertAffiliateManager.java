@@ -49,17 +49,16 @@ public class InsertAffiliateManager {
         JsonObject jsonParams = new JsonObject();
         jsonParams.addProperty("eventName", eventName);
         
-        try {
-            jsonParams.addProperty("deepLinkParam", URLEncoder.encode(deepLinkParam, StandardCharsets.UTF_8.toString()));
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
+        // URL encode the deepLinkParam if the Android version supports it
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            deepLinkParam = URLEncoder.encode(deepLinkParam, StandardCharsets.UTF_8);
         }
+        jsonParams.addProperty("deepLinkParam", deepLinkParam);
 
         Retrofit retrofit = new Retrofit.Builder()
             .baseUrl(Api.BASE_URL_INSERT_AFFILIATE)
-            .client(new OkHttpClient.Builder().build())
             .addConverterFactory(GsonConverterFactory.create())
-            .addConverterFactory(ScalarsConverterFactory.create())
+            .client(new OkHttpClient.Builder().build())
             .build();
 
         Api api = retrofit.create(Api.class);
