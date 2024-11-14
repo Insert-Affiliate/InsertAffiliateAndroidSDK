@@ -206,3 +206,27 @@ public class MainActivity extends AppCompatActivity {
     }
 }
 ```
+
+## Event Tracking (Beta)
+
+The **InsertAffiliateAndroid SDK** includes a beta feature for event tracking, allowing you to monitor specific user actions within your app. Please note that this feature is currently in beta, and while it aims to provide reliable tracking, we cannot guarantee it is entirely resistant to tampering.
+
+### Using `trackEvent`
+
+To track an event, use the `trackEvent` function. Ensure that an affiliate identifier has been set; otherwise, the event tracking will not work.
+
+```java
+InsertAffiliateManager.trackEvent(activity, "your_event_name");
+```
+
+### Example Usage
+Set the Affiliate Identifier (required for tracking):
+
+```java
+InsertAffiliateManager.saveReferLink(activity, "your_affiliate_link");
+```
+
+#### Track an Event:
+```java
+InsertAffiliateManager.trackEvent(activity, "user_signup");
+```
