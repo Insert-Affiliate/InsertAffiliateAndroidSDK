@@ -34,6 +34,7 @@ import retrofit2.converter.scalars.ScalarsConverterFactory;
 public class InsertAffiliateManager {
     private final Context context;
     private String message = null;
+    private static String responseMessage = null;
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
