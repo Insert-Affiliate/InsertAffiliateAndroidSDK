@@ -38,7 +38,7 @@ In your module's build.gradle, add the SDK dependency:
 
 ```java
 dependencies {
-    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.1'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.2'
 }
 ```
 
