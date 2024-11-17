@@ -38,7 +38,7 @@ In your module's build.gradle, add the SDK dependency:
 
 ```java
 dependencies {
-    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.2'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.5'
 }
 ```
 
@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
 After a user makes a successful purchase, you need to verify and acknowledge the purchase. Add this code in your `InAppFragment` to handle the purchase flow and validate it through `InsertAffiliateManager`.
 
 - Replace `{{ your_iaptic_app_name }}` with your **Iaptic App Name**. You can find this [here](https://www.iaptic.com/account).
-- Replace `{{ your_iaptic_secret_key }}` with your **Iaptic Secret Key**. You can find this [here](https://www.iaptic.com/settings).
+- Replace `{{ your_iaptic_public_key }}` with your **Iaptic Public Key**. You can find this [here](https://www.iaptic.com/settings).
 
 Here's the code with placeholders for you to swap out:
 
@@ -115,7 +115,7 @@ public class InAppFragment extends Fragment {
                 insertAffiliateManager.callApiForValidate(
                     getActivity(),
                     "{{ your_iaptic_app_name }}",
-                    "{{ your_iaptic_secret_key }}",
+                    "{{ your_iaptic_public_key }}",
                     purchases.getProduct(),
                     orderId,
                     purchases.getPurchaseToken(),

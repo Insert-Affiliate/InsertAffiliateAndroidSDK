@@ -154,7 +154,7 @@ public class InsertAffiliateManager {
     public String callApiForValidate(
             Activity activity,
             String appname,
-            String secretkey,
+            String publicKey,
             String subscriptionId,
             String purchaseId,
             String purchaseToken,
@@ -189,7 +189,7 @@ public class InsertAffiliateManager {
 
         Api api = retrofit.create(Api.class);
 
-        String yourIapticAuthHeader = appname + ":" + secretkey;
+        String yourIapticAuthHeader = appname + ":" + publicKey;
         String baseauth = Base64.encodeToString(yourIapticAuthHeader.getBytes(), Base64.NO_WRAP);
         Call<JsonObject> call = api.validaterec(jsonParams, "Basic " + baseauth);
         call.enqueue(new Callback<JsonObject>() {
