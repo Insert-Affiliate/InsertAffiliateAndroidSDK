@@ -1,26 +1,27 @@
 # Insert Affiliate SDK
 
-The **InsertAffiliateAndroid SDK** is designed for Android applications, providing seamless integration with the [Insert Affiliate platform](https://insertaffiliate.com). This SDK enables functionalities such as managing affiliate links, handling in-app purchases (IAP), and utilising deep links. For more details and to access the Insert Affiliate dashboard, visit [app.insertaffiliate.com](https://app.insertaffiliate.com).
+The **InsertAffiliateAndroid SDK** is designed for Android applications, providing seamless integration with the [Insert Affiliate platform](https://insertaffiliate.com). This Insert enables functionalities such as managing affiliate links, handling in-app purchases (IAP), and utilising deep links. For more details and to access the Insert Affiliate dashboard, visit [app.insertaffiliate.com](https://app.insertaffiliate.com).
 
-## Table of Contents
-
-1. [Installation](#installation)
-2. [In App Purchase Setup](#in-app-purchase-setup)
-3. [Deep link Setup](#deep-link-setup)
-   
 ## Features
 
-- **Unique Device Identification**: Generates and stores a short unique device ID to identify users effectively.
+- **Unique Device ID**: Creates a unique ID to anonymously associate purchases with users for tracking purposes.
 - **Affiliate Identifier Management**: Set and retrieve the affiliate identifier based on user-specific links.
-- **In-App Purchase (IAP) Initialisation**: Easily reinitialise in-app purchases with validation options using the affiliate identifier.
+- **In-App Purchase (IAP) Initialisation**: Easily reinitialise in-app purchases with the option to validate using an affiliate identifier.
+
+## Getting Started
+To get started with the Insert Affiliate Android SDK:
+
+1. [Install the SDK](#installation)
+2. [Initialise the SDK inside of MainActivity](#basic-usage)
+3. [Set up in-app purchases (required)](#in-app-purchase-setup-required)
 
 ## Installation
 
 Follow the steps below to install the SDK. You can use different methods depending on your project setup (e.g., Gradle, Maven, or manual download).
 
-### Step 1: Add the JitPack repository
+#### Step 1: Add the JitPack repository
 
-In your root `build.gradle`, add the JitPack repository to the `repositories` section:
+In your **root** `build.gradle`, add the JitPack repository to the `repositories` section:
 
 ```java
 dependencyResolutionManagement {
@@ -32,9 +33,9 @@ dependencyResolutionManagement {
 }
 ```
 
-### Step 2. Add the SDK dependency
+#### Step 2. Add the SDK dependency
 
-In your module's build.gradle, add the SDK dependency:
+In your **module's** `build.gradle`, add the SDK dependency:
 
 ```java
 dependencies {
@@ -42,13 +43,8 @@ dependencies {
 }
 ```
 
-## In-App Purchase Setup
-### Step 1: Initialise the InsertAffiliateManager in `MainActivity`
-
-In your `MainActivity`, add the following code to initialise the `InsertAffiliateManager` and set up your in-app purchases:
-
-- Replace `{{ your_company_code }}` with your **Insert Affiliate**. You can find this [here](http://app.insertaffiliate.com/settings).
-
+## Basic Usage
+### Initialise the InsertAffiliateManager in `MainActivity`
 
 ```java
 public class MainActivity extends AppCompatActivity {
@@ -66,159 +62,135 @@ public class MainActivity extends AppCompatActivity {
         // Initialise InsertAffiliateManager in the main activity
         insertAffiliateManager = new InsertAffiliateManager(MainActivity.this);
         insertAffiliateManager.init(MainActivity.this, "{{ your_company_code }}");
-
 }
 ```
+- Replace `{{ your_company_code }}` with the unique company code associated with your Insert Affiliate account. You can find this code in your dashboard under [Settings](http://app.insertaffiliate.com/settings).
 
-## Step 2: Handle the In-App Purchase and Validate
 
+
+## In-App Purchase Setup [Required]
+Insert Affiliate requires a Receipt Verification platform to validate in-app purchases. You must choose **one** of our supported partners:
+- [RevenueCat](https://www.revenuecat.com/)
+- [Iaptic](https://www.iaptic.com/account)
+
+### Option 1: RevenueCat Integration
+
+COMING SOON
+
+### Option 2: Iaptic Integration
+#### Step 1: Set up your in app purchases
+In this example we are using the [Google In-App billing Library](https://github.com/moisoni97/google-inapp-billing) - but you can use your favourite.
+
+#### Step 2: Verify your purchase with Iaptic via our SDK
 After a user makes a successful purchase, you need to verify and acknowledge the purchase. Add this code in your `InAppFragment` to handle the purchase flow and validate it through `InsertAffiliateManager`.
 
+
+```java
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+public class InAppFragment extends Fragment {
+    InsertAffiliateManager insertAffiliateManager;
+    
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        insertAffiliateManager = new InsertAffiliateManager(getActivity());
+    }
+
+    @Override
+    public void onProductsPurchased(@NonNull List<games.moisoni.google_iab.models.PurchaseInfo> purchases) {
+        for (games.moisoni.google_iab.models.PurchaseInfo purchaseInfo
+                : purchases) {
+            String orderId = purchaseInfo.getOrderId();
+            purchasedInfoList.add(purchaseInfo);
+
+            //Purchase was successful
+            insertAffiliateManager.validatePurchaseWithIapticAPI(
+                getActivity(),
+                "{{ your_iaptic_app_name }}",
+                "{{ your_iaptic_public_key }}",
+                purchaseInfo.getProduct(),
+                orderId,
+                purchaseInfo.getPurchaseToken(),
+                purchaseInfo.getOriginalJson(),
+                purchaseInfo.getSignature()
+            );
+        }
+    }
+}
+```
 - Replace `{{ your_iaptic_app_name }}` with your **Iaptic App Name**. You can find this [here](https://www.iaptic.com/account).
 - Replace `{{ your_iaptic_public_key }}` with your **Iaptic Public Key**. You can find this [here](https://www.iaptic.com/settings).
 
-Here's the code with placeholders for you to swap out:
 
-```java
-public class InAppFragment extends Fragment {
-    InsertAffiliateManager insertAffiliateManager;
-    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        root = inflater.inflate(R.layout.fragment_home, container, false);
-        insertAffiliateManager = new InsertAffiliateManager(getActivity());
-
-        // Set up the BillingClient to listen for purchase updates
-        BillingClient billingClient = BillingClient.newBuilder(this)
-            .enablePendingPurchases()
-            .setListener(
-                new PurchasesUpdatedListener() {
-                    @Override
-                    public void onPurchasesUpdated(@NonNull BillingResult billingResult, @Nullable List<Purchase> list) {
-                        if(billingResult.getResponseCode()==BillingClient.BillingResponseCode.OK && list !=null) {
-                            for (Purchase purchase: list){
-                                verifySubPurchase(purchase); // Validate the purchase
-                            }
-                        }
-                    }
-                }
-            ).build();
-    }
-
-    // Method to verify the purchase and acknowledge it
-    void verifySubPurchase(Purchase purchases) {
-        AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams
-            .newBuilder()
-            .setPurchaseToken(purchases.getPurchaseToken())
-            .build();
-
-        billingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult -> {
-            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                String orderId = purchases.getOrderId();
-
-                // Call API to validate the purchase
-                insertAffiliateManager.validatePurchaseWithIapticAPI(
-                    getActivity(),
-                    "{{ your_iaptic_app_name }}",
-                    "{{ your_iaptic_public_key }}",
-                    purchases.getProduct(),
-                    orderId,
-                    purchases.getPurchaseToken(),
-                    purchases.getOriginalJson(),
-                    purchases.getSignature()
-                );
-            }
-        });
-    }
-}
-```
-
-## Deep Link Setup
+## Deep Link Setup [Required]
 
 ### Step 1: Add the Deep Linking Platform Dependency
 
-In this example, the deep linking functionality is implemented using Branch.io. Add the following dependency to your build.gradle file.
+In this example, the deep linking functionality is implemented using [Branch.io](https://dashboard.branch.io/).
 
-```java
-dependencies {
-    implementation 'io.branch.sdk.android:library'
-}
-```
+Any alternative deep linking platform can be used by passing the referring link to ```insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + 
+{{ referring_link }};``` as in the below Branch.io example
+- Replace {{ referring_link }} with the deep link in full that was used to open the app when using other deep linking platforms
 
-### Step 2: Enable Auto-Initialisation of Branch.io in the Application Class
+### Step 2: Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK
 
-Create or modify your `Application` class to automatically initialise Branch.io when your app starts:
-
-```java
-import android.app.Application;
-import io.branch.referral.Branch;
-
-public class InsertAffiliateApp extends Application {
-    @Override
-    public void onCreate() {
-        super.onCreate();
-        Branch.enableLogging();
-        Branch.getAutoInstance(this);
-    }
-}
-```
-
-### Step 3: Start Branch.io Session and Pass User's Unique ID
-
-In your `MainActivity`, start a Branch.io session when the app is opened, and pass the user's unique ID for tracking. Add the following code in the `onStart()` method:
+In your `MainActivity.java`, start a Branch.io session when the app is opened, and pass the user's unique ID for tracking. Add the following code in the `onStart()` method:
 
 ```java
 public class MainActivity extends AppCompatActivity {
     InsertAffiliateManager insertAffiliateManager;
     private ActivityMainBinding binding;
 
-    @SuppressLint("MissingPermission")
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
-
-        insertAffiliateManager = new InsertAffiliateManager(MainActivity.this);
-        insertAffiliateManager.init(MainActivity.this);
-    }
-
+    // ... onCreate() ...//
+    
     @Override
     protected void onStart() {
         super.onStart();
-        // Set user metadata for Branch session
-        Branch.getInstance().setRequestMetadata("$analytics_visitor_id", InsertAffiliateManager.getUniqueId(MainActivity.this));
 
-        // Start Branch session and handle deep link callbacks
+        // Step 1: Create a callback for Branch when a link is clicked
         Branch.sessionBuilder(this).withCallback(new Branch.BranchUniversalReferralInitListener() {
             @Override
             public void onInitFinished(BranchUniversalObject branchUniversalObject, LinkProperties linkProperties, BranchError error) {
                 if (error == null && branchUniversalObject != null) {
                     try {
-                        // Save the referring link from the deep link data
+                        // Step 2: Call the Insert Affiliate SDK with the context and referring link
                         InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + branchUniversalObject.getContentMetadata().convertToJson().get("~referring_link"));
                     } catch (JSONException e) {
-                        // Handle exception if necessary
+                        // ... //
                     }
                 }
             }
         }).withData(this.getIntent().getData()).init();
     }
-
-    @Override
-    public void onStop() {
-        super.onStop();
-    }
 }
 ```
 
-## Short Codes (Beta)
+## Additional Features
+
+### 1: Event Tracking (Beta)
+
+The **InsertAffiliateAndroid SDK** now includes a beta feature for event tracking. Use event tracking to log key user actions such as signups, purchases, or referrals. This is useful for:
+- Understanding user behaviour.
+- Measuring the effectiveness of marketing campaigns.
+- Incentivising affiliates for designated actions being taken by the end users, rather than just in app purchases (i.e. pay an affilaite for each signup).
+
+#### Using `trackEvent`
+
+To track an event, use the `trackEvent` function. Make sure to set an affiliate identifier first; otherwise, event tracking won’t work. Here’s an example:
+
+```java
+InsertAffiliateManager.trackEvent(activity, "your_event_name");
+```
+
+
+### 2. Short Codes (Beta)
 
 ### What are Short Codes?
 
-Short codes are 10-character UUIDs that associate purchases with an affiliate. They are especially useful for influencers, as the codes can be easily shared in videos or marketing campaigns, enabling a more viral and engaging approach than traditional links (e.g., ideal for platforms like TikTok).
+Short codes are unique, 10-character alphanumeric identifiers that affiliates can use to promote products or subscriptions. These codes are ideal for influencers or partners, making them easier to share than long URLs.
+
+**Example Use Case**: An influencer promotes a subscription with the short code "JOIN123456" within their TikTok video's description. When users enter this code within your app during sign-up or before purchase, the app tracks the subscription back to the influencer for commission payouts.
 
 For more information, visit the [Insert Affiliate Short Codes Documentation](https://docs.insertaffiliate.com/short-codes).
 
----
 
 ### Setting a Short Code
 
@@ -229,30 +201,11 @@ Short codes must meet the following criteria:
 - Contain only **letters and numbers** (alphanumeric characters).
 - Replace {{ user_entered_short_code }} with the short code the user enters through your chosen input method, i.e. an input field / pop up element
 
-```java
-InsertAffiliateManager.setShortCode(activity, shortCode: "{{user_entered_short_code}}")
-```
 
-## Event Tracking (Beta)
 
-The **InsertAffiliateAndroid SDK** includes a beta feature for event tracking, allowing you to monitor specific user actions within your app. Please note that this feature is currently in beta, and while it aims to provide reliable tracking, we cannot guarantee it is entirely resistant to tampering.
-
-### Using `trackEvent`
-
-To track an event, use the `trackEvent` function. Ensure that an affiliate identifier has been set; otherwise, the event tracking will not work.
-
-```java
-InsertAffiliateManager.trackEvent(activity, "your_event_name");
-```
-
-### Example Usage
+#### Example Usage
 Set the Affiliate Identifier (required for tracking):
 
 ```java
-InsertAffiliateManager.setInsertAffiliateIdentifier(activity, "your_affiliate_link");
-```
-
-#### Track an Event:
-```java
-InsertAffiliateManager.trackEvent(activity, "user_signup");
+InsertAffiliateManager.setShortCode(activity, "JOIN123456");
 ```
