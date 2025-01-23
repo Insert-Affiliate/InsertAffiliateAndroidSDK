@@ -1,26 +1,17 @@
 package com.aks.insertaffiliateandroid;
 
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import org.json.JSONObject;
-import java.security.SecureRandom;
-import java.util.function.Consumer;
-import java.net.URLEncoder;
-import java.awt.Desktop;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
 
 import com.google.gson.JsonObject;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 
 import okhttp3.OkHttpClient;
@@ -35,7 +26,6 @@ public class InsertAffiliateManager {
     private final Context context;
     private static String companyCode;
     private String message = null;
-    private static String responseMessage = null;
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
