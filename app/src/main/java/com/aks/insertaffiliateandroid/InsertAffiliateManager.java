@@ -33,6 +33,7 @@ import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 public class InsertAffiliateManager {
     private final Context context;
+    private static String companyCode;
     private String message = null;
     private static String responseMessage = null;
 
@@ -40,8 +41,216 @@ public class InsertAffiliateManager {
         this.context = context;
     }
 
+    // MARK: Company Code
+    public static void init(Activity activity, String code) throws IllegalStateException {
+        if (companyCode != null || code == null || code.isEmpty()) {
+            throw new IllegalStateException("[Insert Affiliate] SDK is already initialized with a company code that isn't null.");
+        }
+
+        companyCode = code;
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialized with company code: " + companyCode);
+
+        storeAndReturnShortUniqueDeviceId(activity); // Saving device UUID
+    }
+    public static String getCompanyCode() {
+        return companyCode;
+    }
+    public static void reset() {
+        companyCode = null;
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK has been reset.");
+    }
+
+    // MARK: Short Codes
+    public static boolean isShortCode(String link) {
+        // Check if the link is 10 characters long and contains only letters and numbers
+        String regex = "^[a-zA-Z0-9]{10}$";
+        return link != null && link.matches(regex);
+    }
+
+    public static void setShortCode(Activity activity, String shortCode) {
+        if (shortCode == null || shortCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code cannot be null or empty.");
+            return;
+        }
+
+        // Convert short code to uppercase
+        String capitalisedShortCode = shortCode.toUpperCase();
+
+        // Ensure the short code is exactly 10 characters
+        if (capitalisedShortCode.length() != 10) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code must be exactly 10 characters long.");
+            return;
+        }
+
+        // Ensure the short code contains only letters and numbers
+        if (!capitalisedShortCode.matches("^[a-zA-Z0-9]+$")) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code must contain only letters and numbers.");
+            return;
+        }
+
+        // If all checks pass, set the Insert Affiliate Identifier
+        storeInsertAffiliateReferringLink(capitalisedShortCode);
+
+        // Return and log the Insert Affiliate Identifier
+        String identifier = returnInsertAffiliateIdentifier(activity);
+        if (identifier != null) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Successfully set affiliate identifier: " + identifier);
+        } else {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to set affiliate identifier.");
+        }
+    }
+
+    // MARK: Device UUID
+    private static String generateRandomString(int length) {
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            int index = random.nextInt(characters.length());
+            sb.append(characters.charAt(index));
+        }
+        return sb.toString();
+    }
+
+    private static String returnShortUniqueDeviceId(Activity activity) {
+        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+        return sharedPreferences.getString("shortUniqueDeviceID", null);
+    }
+
+    private static String storeAndReturnShortUniqueDeviceId(Activity activity) {
+        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+        String savedAndroidId = sharedPreferences.getString("shortUniqueDeviceID", null);
+
+        if (savedAndroidId == null) {
+            // Get ANDROID_ID
+            String androidId = Settings.Secure.getString(activity.getContentResolver(), Settings.Secure.ANDROID_ID);
+
+            // If ANDROID_ID is null, generate a random string
+            if (androidId == null) {
+                androidId = generateRandomString(6);
+            }
+
+            // Save trimmed or original ID
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            String shortUniqueId = androidId.length() > 6 ? androidId.substring(0, 6) : androidId;
+            editor.putString("shortUniqueDeviceID", shortUniqueId);
+            editor.apply();
+        }
+
+        return sharedPreferences.getString("shortUniqueDeviceID", null);
+    }
+
+    public static String getUniqueId(Activity activity) {
+        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+        return sharedPreferences.getString("shortUniqueDeviceID", null);
+    }
+
+    // MARK: Setting Insert Affiliate Link
+    public static void setInsertAffiliateIdentifier(Activity activity, String referringLink) {
+        // Check if the companyCode is set
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialize the SDK with a valid company code.");
+            return;
+        }
+
+        // Check if the link is already a short code
+        if (isShortCode(referringLink)) {
+            Log.e("[Insert Affiliate] Referring link is already a short code");
+            storeInsertAffiliateReferringLink(activity, referringLink);
+            return;
+        }
+
+        // Encoding the long form referring link before using it to try and get the Short Link from our API
+        String encodedAffiliateLink;
+        try {
+            encodedAffiliateLink = URLEncoder.encode(referringLink, StandardCharsets.UTF_8.toString());
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to encode referring link: " + e.getMessage());
+            storeInsertAffiliateReferringLink(activity, referringLink);
+            return;
+        }
+
+        String urlString = "http://api.insertaffiliate.com/V1/convert-deep-link-to-short-link?companyId=" 
+            + companyCode 
+            + "&deepLinkUrl=" 
+            + encodedAffiliateLink;
+
+        try {
+            URL url = new URL(urlString);
+            // Perform the GET request in a new thread
+            new Thread(() -> {
+                HttpURLConnection connection = null;
+                try {
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setRequestProperty("Content-Type", "application/json");
+    
+                    int responseCode = connection.getResponseCode();
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                        StringBuilder response = new StringBuilder();
+                        String inputLine;
+    
+                        while ((inputLine = in.readLine()) != null) {
+                            response.append(inputLine);
+                        }
+                        in.close();
+    
+                        JSONObject jsonResponse = new JSONObject(response.toString());
+                        String shortLink = jsonResponse.optString("shortLink");
+    
+                        if (!shortLink.isEmpty()) {
+                            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Short link received: " + shortLink);
+                            storeInsertAffiliateReferringLink(activity, shortLink);
+                        } else {
+                            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Unexpected JSON format");
+                            storeInsertAffiliateReferringLink(activity, referringLink);
+                        }
+                    } else {
+                        Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed with HTTP code: " + responseCode);
+                        storeInsertAffiliateReferringLink(activity, referringLink);
+                    }
+                } catch (Exception e) {
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: " + e.getMessage());
+                    storeInsertAffiliateReferringLink(activity, referringLink);
+                } finally {
+                    if (connection != null) {
+                        connection.disconnect();
+                    }
+                }
+            }).start();
+        } catch (MalformedURLException e) {
+            Log.e("InsertAffiliate TAG", "Invalid URL: " + urlString);
+            storeInsertAffiliateReferringLink(activity, referringLink);
+        }
+
+        // Log success
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referring link saved successfully: " + referringLink);
+    }
+
+    private static void storeInsertAffiliateReferringLink(Activity activity, String referringLink) {
+        SharedPreferences sharedPreferences
+                = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
+        );
+
+        SharedPreferences.Editor editor = sharedPreferences
+                .edit();
+        editor.putString("referring_link", referringLink);
+        editor.commit();
+    }
+
+    public static String returnInsertAffiliateIdentifier(Activity activity) {
+        SharedPreferences sharedPreferences
+                = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
+        );
+        String shortUniqueDeviceID = sharedPreferences.getString("shortUniqueDeviceID", "");
+        String referring_link = sharedPreferences.getString("referring_link", "");
+        return referring_link + "-" + shortUniqueDeviceID;
+    }
+
+    // MARK: Event Tracking
     public static String trackEvent(Activity activity, String eventName) {
-        String deepLinkParam = getReflink(activity);
+        String deepLinkParam = returnInsertAffiliateIdentifier(activity);
         if (deepLinkParam == null) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
             return "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events by opening a link from an affiliate.";
@@ -89,79 +298,18 @@ public class InsertAffiliateManager {
         return responseMessage;
     }
 
-    private static void saveUniqueInsertAffiliateId(Activity activity) {
-        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
-        String savedAndroidId = sharedPreferences.getString("deviceid", null);
 
-        if (savedAndroidId == null) {
-            // Get ANDROID_ID
-            String androidId = Settings.Secure.getString(activity.getContentResolver(), Settings.Secure.ANDROID_ID);
-
-            // If ANDROID_ID is null, generate a random string
-            if (androidId == null) {
-                androidId = generateRandomString(6);
-            }
-
-            // Save trimmed or original ID
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            String shortUniqueId = androidId.length() > 6 ? androidId.substring(0, 6) : androidId;
-            editor.putString("deviceid", shortUniqueId);
-            editor.apply();
-        }
-    }
-
-    // Method to generate a random alphanumeric string of specified length
-    private static String generateRandomString(int length) {
-        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        SecureRandom random = new SecureRandom();
-        StringBuilder sb = new StringBuilder(length);
-        for (int i = 0; i < length; i++) {
-            int index = random.nextInt(characters.length());
-            sb.append(characters.charAt(index));
-        }
-        return sb.toString();
-    }
-
-    public static String getReflink(Activity activity) {
-        SharedPreferences sharedPreferences
-                = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
-        );
-        String uniqueId = sharedPreferences.getString("deviceid", "");
-        String referring_link = sharedPreferences.getString("referring_link", "");
-        return referring_link + "/" + uniqueId;
-    }
-
-    public static String getUniqueId(Activity activity) {
-        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
-        return sharedPreferences.getString("deviceid", null);
-    }
-
-    public static void saveReferLink(Activity activity, String reflink) {
-        SharedPreferences sharedPreferences
-                = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
-        );
-
-        SharedPreferences.Editor editor = sharedPreferences
-                .edit();
-        editor.putString("referring_link", reflink);
-        editor.commit();
-    }
-
-    public void init(Activity activity) {
-        saveUniqueInsertAffiliateId(activity);
-    }
-
-    public String callApiForValidate(
-            Activity activity,
-            String appname,
-            String publicKey,
-            String subscriptionId,
-            String purchaseId,
-            String purchaseToken,
-            String receipt,
-            String signature
+    // MARK: Validation with Iaptic API
+    public String validatePurchaseWithIapticAPI(
+        Activity activity,
+        String appname,
+        String publicKey,
+        String subscriptionId,
+        String purchaseId,
+        String purchaseToken,
+        String receipt,
+        String signature
     ) {
-
         JsonObject jsonParams = new JsonObject();
         JsonObject objTrans = new JsonObject();
         JsonObject objAddData = new JsonObject();
@@ -173,7 +321,7 @@ public class InsertAffiliateManager {
         objTrans.addProperty("signature", signature);
 
         objAddData.addProperty("applicationUsername",
-                getReflink(activity));
+            returnInsertAffiliateIdentifier(activity));
 
         jsonParams.addProperty("id", subscriptionId);
         jsonParams.addProperty("type", "paid subscription");
@@ -181,7 +329,7 @@ public class InsertAffiliateManager {
         jsonParams.add("additionalData", objAddData);
 
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(Api.BASE_URL)
+                .baseUrl(Api.BASE_URL_IAPTIC_VALIDATOR)
                 .client(new OkHttpClient.Builder().build())
                 .addConverterFactory(GsonConverterFactory.create())
                 .addConverterFactory(ScalarsConverterFactory.create())

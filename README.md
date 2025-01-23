@@ -47,6 +47,9 @@ dependencies {
 
 In your `MainActivity`, add the following code to initialise the `InsertAffiliateManager` and set up your in-app purchases:
 
+- Replace `{{ your_company_code }}` with your **Insert Affiliate**. You can find this [here](http://app.insertaffiliate.com/settings).
+
+
 ```java
 public class MainActivity extends AppCompatActivity {
     SharedPreferences sharedPreferences;
@@ -62,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Initialise InsertAffiliateManager in the main activity
         insertAffiliateManager = new InsertAffiliateManager(MainActivity.this);
-        insertAffiliateManager.init(MainActivity.this);
+        insertAffiliateManager.init(MainActivity.this, "{{ your_company_code }}");
 
 }
 ```
@@ -112,7 +115,7 @@ public class InAppFragment extends Fragment {
                 String orderId = purchases.getOrderId();
 
                 // Call API to validate the purchase
-                insertAffiliateManager.callApiForValidate(
+                insertAffiliateManager.validatePurchaseWithIapticAPI(
                     getActivity(),
                     "{{ your_iaptic_app_name }}",
                     "{{ your_iaptic_public_key }}",
@@ -191,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
                 if (error == null && branchUniversalObject != null) {
                     try {
                         // Save the referring link from the deep link data
-                        InsertAffiliateManager.saveReferLink(MainActivity.this, "" + branchUniversalObject.getContentMetadata().convertToJson().get("~referring_link"));
+                        InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + branchUniversalObject.getContentMetadata().convertToJson().get("~referring_link"));
                     } catch (JSONException e) {
                         // Handle exception if necessary
                     }
@@ -205,6 +208,29 @@ public class MainActivity extends AppCompatActivity {
         super.onStop();
     }
 }
+```
+
+## Short Codes (Beta)
+
+### What are Short Codes?
+
+Short codes are 10-character UUIDs that associate purchases with an affiliate. They are especially useful for influencers, as the codes can be easily shared in videos or marketing campaigns, enabling a more viral and engaging approach than traditional links (e.g., ideal for platforms like TikTok).
+
+For more information, visit the [Insert Affiliate Short Codes Documentation](https://docs.insertaffiliate.com/short-codes).
+
+---
+
+### Setting a Short Code
+
+Use the `setShortCode` method to associate a short code with an affiliate. This is ideal for scenarios where users enter the code via an input field, pop-up, or similar UI element.
+
+Short codes must meet the following criteria:
+- Exactly **10 characters long**.
+- Contain only **letters and numbers** (alphanumeric characters).
+- Replace {{ user_entered_short_code }} with the short code the user enters through your chosen input method, i.e. an input field / pop up element
+
+```java
+InsertAffiliateManager.setShortCode(activity, shortCode: "{{user_entered_short_code}}")
 ```
 
 ## Event Tracking (Beta)
@@ -223,7 +249,7 @@ InsertAffiliateManager.trackEvent(activity, "your_event_name");
 Set the Affiliate Identifier (required for tracking):
 
 ```java
-InsertAffiliateManager.saveReferLink(activity, "your_affiliate_link");
+InsertAffiliateManager.setInsertAffiliateIdentifier(activity, "your_affiliate_link");
 ```
 
 #### Track an Event:
