@@ -10,6 +10,13 @@ import android.util.Log;
 
 import com.google.gson.JsonObject;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -26,6 +33,7 @@ public class InsertAffiliateManager {
     private final Context context;
     private static String companyCode;
     private String message = null;
+    private static String responseMessage = null;
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
@@ -79,7 +87,7 @@ public class InsertAffiliateManager {
         }
 
         // If all checks pass, set the Insert Affiliate Identifier
-        storeInsertAffiliateReferringLink(capitalisedShortCode);
+        storeInsertAffiliateReferringLink(activity,capitalisedShortCode);
 
         // Return and log the Insert Affiliate Identifier
         String identifier = returnInsertAffiliateIdentifier(activity);
@@ -145,7 +153,7 @@ public class InsertAffiliateManager {
 
         // Check if the link is already a short code
         if (isShortCode(referringLink)) {
-            Log.e("[Insert Affiliate] Referring link is already a short code");
+            Log.e("InsertAffiliate TAG","[Insert Affiliate] Referring link is already a short code");
             storeInsertAffiliateReferringLink(activity, referringLink);
             return;
         }
