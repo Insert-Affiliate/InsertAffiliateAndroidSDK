@@ -42,17 +42,17 @@ public class InsertAffiliateManager {
     // MARK: Company Code
     public static void init(Activity activity, String code) throws IllegalStateException {
         if (companyCode != null || code == null || code.isEmpty()) {
-            throw new IllegalStateException("[Insert Affiliate] SDK is already initialized with a company code that isn't null.");
+            Log.i("InsertAffiliate TAG", ("[Insert Affiliate] SDK is already initialized with a company code that isn't null.");
         }
-
         companyCode = code;
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialized with company code: " + companyCode);
-
         storeAndReturnShortUniqueDeviceId(activity); // Saving device UUID
     }
+
     public static String getCompanyCode() {
         return companyCode;
     }
+
     public static void reset() {
         companyCode = null;
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK has been reset.");
