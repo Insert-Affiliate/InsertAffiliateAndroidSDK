@@ -121,16 +121,23 @@ public class InAppFragment extends Fragment {
 
 
 ## Deep Link Setup [Required]
+Insert Affiliate requires a Deep Linking platform to create links for your affiliates. Our platform works with **any** deep linking provider, and you only need to follow these steps:
+1. **Create a deep link** in your chosen third-party platform and pass it to our dashboard when an affiliate signs up. 
+2. **Handle deep link clicks** in your app by passing the clicked link:
+   ```kotlin
+insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + 
+{{ referring_link }};
+   ```
 
-### Step 1: Add the Deep Linking Platform Dependency
+### Deep Linking with Branch.io
+To set up deep linking with Branch.io, follow these steps:
 
-In this example, the deep linking functionality is implemented using [Branch.io](https://dashboard.branch.io/).
+1. Create a deep link in Branch and pass it to our dashboard when an affiliate signs up.
+    - Example: [Branch Deep Link Setup](https://docs.insertaffiliate.com/branch-create-affiliate).
+2. odify Your Deep Link Handling in `MainActivity.javMa`
+    - After setting up your Branch integration, add the following code to initialise the Insert Affiliate SDK in your app:
 
-Any alternative deep linking platform can be used by passing the referring link to ```insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + 
-{{ referring_link }};``` as in the below Branch.io example
-- Replace {{ referring_link }} with the deep link in full that was used to open the app when using other deep linking platforms
-
-### Step 2: Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK
+#### Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK
 
 In your `MainActivity.java`, start a Branch.io session when the app is opened, and pass the user's unique ID for tracking. Add the following code in the `onStart()` method:
 
