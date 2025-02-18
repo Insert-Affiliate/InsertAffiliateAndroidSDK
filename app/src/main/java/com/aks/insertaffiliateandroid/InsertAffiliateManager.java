@@ -168,7 +168,7 @@ public class InsertAffiliateManager {
             return;
         }
 
-        String urlString = "http://api.insertaffiliate.com/V1/convert-deep-link-to-short-link?companyId=" 
+        String urlString = "https://api.insertaffiliate.com/V1/convert-deep-link-to-short-link?companyId="
             + companyCode 
             + "&deepLinkUrl=" 
             + encodedAffiliateLink;
