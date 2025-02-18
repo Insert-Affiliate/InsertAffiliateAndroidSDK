@@ -134,7 +134,7 @@ To set up deep linking with Branch.io, follow these steps:
 
 1. Create a deep link in Branch and pass it to our dashboard when an affiliate signs up.
     - Example: [Branch Deep Link Setup](https://docs.insertaffiliate.com/branch-create-affiliate).
-2. odify Your Deep Link Handling in `MainActivity.javMa`
+2. Modify Your Deep Link Handling in `MainActivity.java`
     - After setting up your Branch integration, add the following code to initialise the Insert Affiliate SDK in your app:
 
 #### Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK
