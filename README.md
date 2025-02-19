@@ -14,6 +14,8 @@ To get started with the Insert Affiliate Android SDK:
 1. [Install the SDK](#installation)
 2. [Initialise the SDK inside of MainActivity](#basic-usage)
 3. [Set up in-app purchases (required)](#in-app-purchase-setup-required)
+4. [Set up deep linking (Required)](#deep-link-setup-required)
+5. [Use additional features like event tracking based on your app's requirements.](#additional-features)
 
 ## Installation
 
@@ -67,7 +69,6 @@ public class MainActivity extends AppCompatActivity {
 - Replace `{{ your_company_code }}` with the unique company code associated with your Insert Affiliate account. You can find this code in your dashboard under [Settings](http://app.insertaffiliate.com/settings).
 
 
-
 ## In-App Purchase Setup [Required]
 Insert Affiliate requires a Receipt Verification platform to validate in-app purchases. You must choose **one** of our supported partners:
 - [RevenueCat](https://www.revenuecat.com/)
@@ -75,7 +76,63 @@ Insert Affiliate requires a Receipt Verification platform to validate in-app pur
 
 ### Option 1: RevenueCat Integration
 
-COMING SOON
+
+
+
+
+#### 1. Code Setup
+First, complete the [RevenueCat SDK installation](https://www.revenuecat.com/docs/getting-started/installation/android). Then modify your `MainActivity.java`:
+
+```java
+import com.revenuecat.purchases.CustomerInfo;
+import com.revenuecat.purchases.Purchases;
+import com.revenuecat.purchases.PurchasesError;
+import com.revenuecat.purchases.interfaces.LogInCallback;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+    SharedPreferences sharedPreferences;
+    InsertAffiliateManager insertAffiliateManager;
+    private ActivityMainBinding binding;
+    
+    protected void onCreate(Bundle savedInstanceState) {
+        InsertAffiliateManager.init(MainActivity.this, {{your_company_code}});
+
+        String insertAffiliateIdentifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
+        if(!insertAffiliateIdentifier.equals(null)) {
+            Purchases.getSharedInstance().logIn(
+                insertAffiliateIdentifier,
+                new LogInCallback() {
+                    @Override
+                    public void onReceived(@NotNull CustomerInfo customerInfo, boolean created) {
+                    }
+                    @Override
+                    public void onError(@NotNull PurchasesError error) {
+                    }
+                });
+        }
+    }
+}
+```
+- Replace `{{ your_company_code }}` with the unique company code associated with your Insert Affiliate account. You can find this code in your dashboard under [Settings](http://app.insertaffiliate.com/settings).
+
+#### 2. Webhook Setup
+
+1. Go to RevenueCat and [create a new webhook](https://www.revenuecat.com/docs/integrations/webhooks)
+
+2. Configure the webhook with these settings:
+   - Webhook URL: `https://api.insertaffiliate.com/v1/api/revenuecat-webhook`
+   - Authorization header: Use the value from your Insert Affiliate dashboard (you'll get this in step 4)
+
+3. In your [Insert Affiliate dashboard settings](https://app.insertaffiliate.com/settings):
+   - Navigate to the verification settings
+   - Set the in-app purchase verification method to `RevenueCat`
+
+4. Back in your Insert Affiliate dashboard:
+   - Locate the `RevenueCat Webhook Authentication Header` value
+   - Copy this value
+   - Paste it as the Authorization header value in your RevenueCat webhook configuration
+
 
 ### Option 2: Iaptic Integration
 #### Step 1: Set up your in app purchases
@@ -137,7 +194,49 @@ To set up deep linking with Branch.io, follow these steps:
 2. Modify Your Deep Link Handling in `MainActivity.java`
     - After setting up your Branch integration, add the following code to initialise the Insert Affiliate SDK in your app:
 
-#### Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK
+#### Example with RevenueCat
+```java
+public class MainActivity extends AppCompatActivity {
+    InsertAffiliateManager insertAffiliateManager;
+    private ActivityMainBinding binding;
+    
+    @Override
+    protected void onStart() {
+        super.onStart();
+        
+        // Step 1: Create a callback for Branch when a link is clicked
+        Branch.sessionBuilder(this).withCallback(new Branch.BranchUniversalReferralInitListener() {
+            @Override
+            public void onInitFinished(BranchUniversalObject branchUniversalObject, LinkProperties linkProperties, BranchError error) {
+                if (error == null && branchUniversalObject != null) {
+                    try {
+                        // Step 2: Call the Insert Affiliate SDK with the context and referring link
+                        InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + branchUniversalObject.getContentMetadata().convertToJson().get("~referring_link"));
+                        
+                        String insertAffiliateIdentifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
+    
+                        Purchases.getSharedInstance().logIn(
+                            insertAffiliateIdentifier,
+                            new LogInCallback() {
+                                @Override
+                                    public void onReceived(@NotNull CustomerInfo customerInfo, boolean created) {
+                                }
+                                @Override
+                                    public void onError(@NotNull PurchasesError error) {
+                                }
+                            }
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+#### Example with Iaptic
+
+**1. Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK**
 
 In your `MainActivity.java`, start a Branch.io session when the app is opened, and pass the user's unique ID for tracking. Add the following code in the `onStart()` method:
 
@@ -145,8 +244,6 @@ In your `MainActivity.java`, start a Branch.io session when the app is opened, a
 public class MainActivity extends AppCompatActivity {
     InsertAffiliateManager insertAffiliateManager;
     private ActivityMainBinding binding;
-
-    // ... onCreate() ...//
     
     @Override
     protected void onStart() {
