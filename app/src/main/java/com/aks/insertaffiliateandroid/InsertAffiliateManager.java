@@ -168,7 +168,7 @@ public class InsertAffiliateManager {
             return;
         }
     
-        String apiUrl = "https://8a65-87-244-78-139.ngrok-free.app/v1/api/app-store-webhook/create-expected-transaction";
+        String apiUrl = "https://38cb-87-244-78-139.ngrok-free.app/v1/api/app-store-webhook/create-expected-transaction";
     
         // Networking done on background thread
         new Thread(() -> {
