@@ -143,6 +143,69 @@ public class InsertAffiliateManager {
         return sharedPreferences.getString("shortUniqueDeviceID", null);
     }
 
+    public static void storeExpectedPlayStoreTransaction(Activity activity, String purchaseToken) {
+        String companyCode = getCompanyCode();
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
+            return;
+        }
+    
+        String shortCode = returnInsertAffiliateIdentifier(activity);
+        if (shortCode == null || shortCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            return;
+        }
+    
+        // Build JSON payload
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("UUID", purchaseToken);
+            payload.put("companyCode", companyCode);
+            payload.put("shortCode", shortCode);
+            payload.put("storedDate", java.time.Instant.now().toString());  // ISO8601 date
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to build JSON payload: " + e.getMessage());
+            return;
+        }
+
+        String apiUrl = "https://api.insertaffiliate.com/v1/api/app-store-webhook/create-expected-transaction";
+
+        // Networking done on background thread
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(apiUrl);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
+    
+                // Write JSON payload
+                byte[] outputBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                connection.getOutputStream().write(outputBytes);
+    
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Expected transaction stored successfully.");
+                } else {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getErrorStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to store expected transaction with status code: " + responseCode + ". Response: " + response);
+                }
+            } catch (Exception e) {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error storing expected transaction: " + e.getMessage());
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }).start();
+    }
+
     // MARK: Setting Insert Affiliate Link
     public static void setInsertAffiliateIdentifier(Activity activity, String referringLink) {
         // Check if the companyCode is set
@@ -243,6 +306,12 @@ public class InsertAffiliateManager {
         );
         String shortUniqueDeviceID = sharedPreferences.getString("shortUniqueDeviceID", "");
         String referring_link = sharedPreferences.getString("referring_link", "");
+
+        if (referring_link == null || referring_link.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            return null;
+        }
+
         return referring_link + "-" + shortUniqueDeviceID;
     }
 
