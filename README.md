@@ -41,7 +41,7 @@ In your **module's** `build.gradle`, add the SDK dependency:
 
 ```java
 dependencies {
-    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.0.5'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.1.0'
 }
 ```
 
@@ -73,11 +73,9 @@ public class MainActivity extends AppCompatActivity {
 Insert Affiliate requires a Receipt Verification platform to validate in-app purchases. You must choose **one** of our supported partners:
 - [RevenueCat](https://www.revenuecat.com/)
 - [Iaptic](https://www.iaptic.com/account)
+- [Direct Google Play Integration through RTDN](https://docs.insertaffiliate.com/direct-google-play-store-purchase-integration)
 
 ### Option 1: RevenueCat Integration
-
-
-
 
 
 #### 1. Code Setup
@@ -176,6 +174,30 @@ public class InAppFragment extends Fragment {
 - Replace `{{ your_iaptic_app_name }}` with your **Iaptic App Name**. You can find this [here](https://www.iaptic.com/account).
 - Replace `{{ your_iaptic_public_key }}` with your **Iaptic Public Key**. You can find this [here](https://www.iaptic.com/settings).
 
+### Option 3: Google Play Store Direct Integration
+Our direct Google Play Store integration is currently in beta.
+
+#### 1. Real Time Developer Notifications (RTDN) Setup
+
+Visit [our docs](https://docs.insertaffiliate.com/direct-google-play-store-purchase-integration) and complete the required set up steps for Google Play's Real Time Developer Notifications.
+
+#### 2. Implementing Purchases
+
+```java
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class InAppFragment extends Fragment {
+    InsertAffiliateManager insertAffiliateManager;
+
+    @Override
+    public void onProductsPurchased(@NonNull List<PurchaseInfo> purchases) {
+        for (PurchaseInfo purchase : purchases) {
+            purchasedInfoList.add(purchase);
+            InsertAffiliateManager.storeExpectedPlayStoreTransaction(getActivity(), purchase.getPurchaseToken());
+        }
+    }
+}
+```
 
 ## Deep Link Setup [Required]
 Insert Affiliate requires a Deep Linking platform to create links for your affiliates. Our platform works with **any** deep linking provider, and you only need to follow these steps:
@@ -234,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
-#### Example with Iaptic
+#### Example with Iaptic / Direct Google Play Store Integration through RTDN
 
 **1. Modify Branch.io's onStart() to Pass the Referring Link to the Insert Affiliate SDK**
 

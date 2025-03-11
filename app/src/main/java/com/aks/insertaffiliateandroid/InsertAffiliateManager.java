@@ -167,9 +167,9 @@ public class InsertAffiliateManager {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to build JSON payload: " + e.getMessage());
             return;
         }
-    
-        String apiUrl = "https://38cb-87-244-78-139.ngrok-free.app/v1/api/app-store-webhook/create-expected-transaction";
-    
+
+        String apiUrl = "https://api.insertaffiliate.com/v1/api/app-store-webhook/create-expected-transaction";
+
         // Networking done on background thread
         new Thread(() -> {
             HttpURLConnection connection = null;
@@ -306,6 +306,12 @@ public class InsertAffiliateManager {
         );
         String shortUniqueDeviceID = sharedPreferences.getString("shortUniqueDeviceID", "");
         String referring_link = sharedPreferences.getString("referring_link", "");
+
+        if (referring_link == null || referring_link.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            return null;
+        }
+
         return referring_link + "-" + shortUniqueDeviceID;
     }
 
