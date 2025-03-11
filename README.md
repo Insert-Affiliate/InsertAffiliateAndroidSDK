@@ -203,6 +203,7 @@ public class InAppFragment extends Fragment {
 Insert Affiliate requires a Deep Linking platform to create links for your affiliates. Our platform works with **any** deep linking provider, and you only need to follow these steps:
 1. **Create a deep link** in your chosen third-party platform and pass it to our dashboard when an affiliate signs up. 
 2. **Handle deep link clicks** in your app by passing the clicked link:
+
 ```java
 insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + 
 {{ referring_link }};
@@ -212,7 +213,7 @@ insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" +
 To set up deep linking with Branch.io, follow these steps:
 
 1. Create a deep link in Branch and pass it to our dashboard when an affiliate signs up.
-    - Example: [Branch Deep Link Setup](https://docs.insertaffiliate.com/branch-create-affiliate).
+    - Example: [Create Affiliate](https://docs.insertaffiliate.com/create-affiliate).
 2. Modify Your Deep Link Handling in `MainActivity.java`
     - After setting up your Branch integration, add the following code to initialise the Insert Affiliate SDK in your app:
 
