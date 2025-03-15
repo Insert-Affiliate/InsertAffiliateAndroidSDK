@@ -1,4 +1,4 @@
-# Insert Affiliate SDK
+# Insert Affiliate Android SDK
 
 The **InsertAffiliateAndroid SDK** is designed for Android applications, providing seamless integration with the [Insert Affiliate platform](https://insertaffiliate.com). This Insert enables functionalities such as managing affiliate links, handling in-app purchases (IAP), and utilising deep links. For more details and to access the Insert Affiliate dashboard, visit [app.insertaffiliate.com](https://app.insertaffiliate.com).
 
@@ -41,7 +41,7 @@ In your **module's** `build.gradle`, add the SDK dependency:
 
 ```java
 dependencies {
-    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.1.0'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.1.1'
 }
 ```
 
@@ -79,7 +79,9 @@ Insert Affiliate requires a Receipt Verification platform to validate in-app pur
 
 
 #### 1. Code Setup
-First, complete the [RevenueCat SDK installation](https://www.revenuecat.com/docs/getting-started/installation/android). Then modify your `MainActivity.java`:
+First, complete the [RevenueCat SDK installation](https://www.revenuecat.com/docs/getting-started/installation/android) and configure. Then modify your `MainActivity.java`:
+
+
 
 ```java
 import com.revenuecat.purchases.CustomerInfo;
@@ -98,16 +100,7 @@ public class MainActivity extends AppCompatActivity {
 
         String insertAffiliateIdentifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
         if(!insertAffiliateIdentifier.equals(null)) {
-            Purchases.getSharedInstance().logIn(
-                insertAffiliateIdentifier,
-                new LogInCallback() {
-                    @Override
-                    public void onReceived(@NotNull CustomerInfo customerInfo, boolean created) {
-                    }
-                    @Override
-                    public void onError(@NotNull PurchasesError error) {
-                    }
-                });
+            Purchases.sharedInstance.setAttributes(mapOf("insert_affiliate" to insertAffiliateIdentifier));
         }
     }
 }
@@ -237,18 +230,7 @@ public class MainActivity extends AppCompatActivity {
                         InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + branchUniversalObject.getContentMetadata().convertToJson().get("~referring_link"));
                         
                         String insertAffiliateIdentifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
-    
-                        Purchases.getSharedInstance().logIn(
-                            insertAffiliateIdentifier,
-                            new LogInCallback() {
-                                @Override
-                                    public void onReceived(@NotNull CustomerInfo customerInfo, boolean created) {
-                                }
-                                @Override
-                                    public void onError(@NotNull PurchasesError error) {
-                                }
-                            }
-                        );
+                        Purchases.sharedInstance.setAttributes(mapOf("insert_affiliate" to insertAffiliateIdentifier));
                     }
                 }
             }
