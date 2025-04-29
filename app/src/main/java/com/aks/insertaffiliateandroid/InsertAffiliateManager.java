@@ -323,13 +323,20 @@ public class InsertAffiliateManager {
             return "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events by opening a link from an affiliate.";
         }
 
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
+            return "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.";
+        }
+
         JsonObject jsonParams = new JsonObject();
         jsonParams.addProperty("eventName", eventName);
-        
+        jsonParams.addProperty("companyId", companyCode);
+
         // URL encode the deepLinkParam if the Android version supports it
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             deepLinkParam = URLEncoder.encode(deepLinkParam, StandardCharsets.UTF_8);
         }
+
         jsonParams.addProperty("deepLinkParam", deepLinkParam);
 
         Retrofit retrofit = new Retrofit.Builder()

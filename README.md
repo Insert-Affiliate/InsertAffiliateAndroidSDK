@@ -94,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
     SharedPreferences sharedPreferences;
     InsertAffiliateManager insertAffiliateManager;
     private ActivityMainBinding binding;
-    
+
     protected void onCreate(Bundle savedInstanceState) {
         InsertAffiliateManager.init(MainActivity.this, {{your_company_code}});
 
@@ -114,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
 2. Configure the webhook with these settings:
    - Webhook URL: `https://api.insertaffiliate.com/v1/api/revenuecat-webhook`
    - Authorization header: Use the value from your Insert Affiliate dashboard (you'll get this in step 4)
+   - Set "Event Type" to "All events"
 
 3. In your [Insert Affiliate dashboard settings](https://app.insertaffiliate.com/settings):
    - Navigate to the verification settings
@@ -294,7 +295,7 @@ InsertAffiliateManager.trackEvent(activity, "your_event_name");
 
 ### What are Short Codes?
 
-Short codes are unique, 10-character alphanumeric identifiers that affiliates can use to promote products or subscriptions. These codes are ideal for influencers or partners, making them easier to share than long URLs.
+Short codes are unique, 3 to 25 character alphanumeric identifiers that affiliates can use to promote products or subscriptions. These codes are ideal for influencers or partners, making them easier to share than long URLs.
 
 **Example Use Case**: An influencer promotes a subscription with the short code "JOIN123456" within their TikTok video's description. When users enter this code within your app during sign-up or before purchase, the app tracks the subscription back to the influencer for commission payouts.
 
@@ -306,7 +307,7 @@ For more information, visit the [Insert Affiliate Short Codes Documentation](htt
 Use the `setShortCode` method to associate a short code with an affiliate. This is ideal for scenarios where users enter the code via an input field, pop-up, or similar UI element.
 
 Short codes must meet the following criteria:
-- Exactly **10 characters long**.
+- Between **3 and 25 characters long**.
 - Contain only **letters and numbers** (alphanumeric characters).
 - Replace {{ user_entered_short_code }} with the short code the user enters through your chosen input method, i.e. an input field / pop up element
 
