@@ -41,7 +41,7 @@ In your **module's** `build.gradle`, add the SDK dependency:
 
 ```java
 dependencies {
-    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.1.1'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.1.2'
 }
 ```
 
@@ -76,8 +76,6 @@ Insert Affiliate requires a Receipt Verification platform to validate in-app pur
 - [Direct Google Play Integration through RTDN](https://docs.insertaffiliate.com/direct-google-play-store-purchase-integration)
 
 ### Option 1: RevenueCat Integration
-
-
 #### 1. Code Setup
 First, complete the [RevenueCat SDK installation](https://www.revenuecat.com/docs/getting-started/installation/android) and configure. Then modify your `MainActivity.java`:
 
@@ -127,12 +125,12 @@ public class MainActivity extends AppCompatActivity {
 
 
 ### Option 2: Iaptic Integration
+#### 1. Code Setup
 #### Step 1: Set up your in app purchases
 In this example we are using the [Google In-App billing Library](https://github.com/moisoni97/google-inapp-billing) - but you can use your favourite.
 
 #### Step 2: Verify your purchase with Iaptic via our SDK
 After a user makes a successful purchase, you need to verify and acknowledge the purchase. Add this code in your `InAppFragment` to handle the purchase flow and validate it through `InsertAffiliateManager`.
-
 
 ```java
 import com.aks.insertaffiliateandroid.InsertAffiliateManager;
@@ -167,6 +165,18 @@ public class InAppFragment extends Fragment {
 ```
 - Replace `{{ your_iaptic_app_name }}` with your **Iaptic App Name**. You can find this [here](https://www.iaptic.com/account).
 - Replace `{{ your_iaptic_public_key }}` with your **Iaptic Public Key**. You can find this [here](https://www.iaptic.com/settings).
+
+#### 2. Webhook Setup
+
+1. Open the [Insert Affiliate settings](https://app.insertaffiliate.com/settings):
+  - Navigate to the Verification Settings section
+  - Set the In-App Purchase Verification method to `Iaptic`
+  - Copy the `Iaptic Webhook URL` and the `Iaptic Webhook Sandbox URL`- you'll need it in the next step.
+2. Go to the [Iaptic Settings](https://www.iaptic.com/settings)
+- Paste the copied `Iaptic Webhook URL` into the `Webhook URL` field
+- Paste the copied `Iaptic Webhook Sandbox URL` into the `Sandbox Webhook URL` field
+- Click **Save Settings**.
+3. Check that you have completed the [Iaptic setup for the App Store Server Notifications](https://www.iaptic.com/documentation/setup/ios-subscription-status-url)
 
 ### Option 3: Google Play Store Direct Integration
 Our direct Google Play Store integration is currently in beta.
