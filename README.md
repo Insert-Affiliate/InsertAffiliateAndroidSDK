@@ -176,7 +176,7 @@ public class InAppFragment extends Fragment {
 - Paste the copied `Iaptic Webhook URL` into the `Webhook URL` field
 - Paste the copied `Iaptic Webhook Sandbox URL` into the `Sandbox Webhook URL` field
 - Click **Save Settings**.
-3. Check that you have completed the [Iaptic setup for the App Store Server Notifications](https://www.iaptic.com/documentation/setup/ios-subscription-status-url)
+3. Check that you have completed the [Iaptic setup for the Google Play Notifications URL](https://www.iaptic.com/documentation/setup/connect-with-google-publisher-api)
 
 ### Option 3: Google Play Store Direct Integration
 Our direct Google Play Store integration is currently in beta.
