@@ -60,8 +60,8 @@ public class InsertAffiliateManager {
 
     // MARK: Short Codes
     public static boolean isShortCode(String link) {
-        // Check if the link is 10 characters long and contains only letters and numbers
-        String regex = "^[a-zA-Z0-9]{10}$";
+        // Check if the link is between 3 and 25 characters long and contains only letters and numbers
+        String regex = "^[a-zA-Z0-9]{3,25}$";
         return link != null && link.matches(regex);
     }
 
