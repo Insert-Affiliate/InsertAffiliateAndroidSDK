@@ -36,6 +36,7 @@ public class InsertAffiliateManager {
     private static String companyCode;
     private String message = null;
     private static String responseMessage = null;
+    private static boolean verboseLogging = false;
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
@@ -43,12 +44,28 @@ public class InsertAffiliateManager {
 
     // MARK: Company Code
     public static void init(Activity activity, String code){
+        init(activity, code, false);
+    }
+    
+    public static void init(Activity activity, String code, boolean enableVerboseLogging){
+        verboseLogging = enableVerboseLogging;
+        
+        if (verboseLogging) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Starting SDK initialization...");
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Company code provided: " + (code != null && !code.isEmpty() ? "Yes" : "No"));
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Verbose logging enabled");
+        }
+        
         if (companyCode != null || code == null || code.isEmpty()) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK is already initialized with a company code that isn't null.");
         }
         companyCode = code;
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialized with company code: " + companyCode);
         storeAndReturnShortUniqueDeviceId(activity); // Saving device UUID
+        
+        if (verboseLogging) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] SDK initialization completed");
+        }
     }
 
     public static String getCompanyCode() {
@@ -118,10 +135,12 @@ public class InsertAffiliateManager {
     }
 
     private static String storeAndReturnShortUniqueDeviceId(Activity activity) {
+        verboseLog("Getting or generating user ID...");
         SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
         String savedAndroidId = sharedPreferences.getString("shortUniqueDeviceID", null);
 
         if (savedAndroidId == null) {
+            verboseLog("No existing user ID found, generating new one...");
             // Get ANDROID_ID
             String androidId = Settings.Secure.getString(activity.getContentResolver(), Settings.Secure.ANDROID_ID);
 
@@ -135,6 +154,9 @@ public class InsertAffiliateManager {
             String shortUniqueId = androidId.length() > 6 ? androidId.substring(0, 6) : androidId;
             editor.putString("shortUniqueDeviceID", shortUniqueId);
             editor.apply();
+            verboseLog("Generated and saved new user ID: " + shortUniqueId);
+        } else {
+            verboseLog("Found existing user ID: " + savedAndroidId);
         }
 
         return sharedPreferences.getString("shortUniqueDeviceID", null);
@@ -146,17 +168,23 @@ public class InsertAffiliateManager {
     }
 
     public static void storeExpectedPlayStoreTransaction(Activity activity, String purchaseToken) {
+        verboseLog("Storing expected store transaction with token: " + purchaseToken);
+        
         String companyCode = getCompanyCode();
         if (companyCode == null || companyCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
+            verboseLog("Cannot store transaction: no company code available");
             return;
         }
     
         String shortCode = returnInsertAffiliateIdentifier(activity);
         if (shortCode == null || shortCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            verboseLog("Cannot store transaction: no affiliate identifier available");
             return;
         }
+        
+        verboseLog("Company code: " + companyCode + ", Short code: " + shortCode);
     
         // Build JSON payload
         JSONObject payload = new JSONObject();
@@ -169,6 +197,9 @@ public class InsertAffiliateManager {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to build JSON payload: " + e.getMessage());
             return;
         }
+        
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Storing expected transaction: " + payload);
+        verboseLog("Making API call to store expected transaction...");
 
         String apiUrl = "https://api.insertaffiliate.com/v1/api/app-store-webhook/create-expected-transaction";
 
@@ -187,8 +218,10 @@ public class InsertAffiliateManager {
                 connection.getOutputStream().write(outputBytes);
     
                 int responseCode = connection.getResponseCode();
+                verboseLog("API response status: " + responseCode);
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     Log.i("InsertAffiliate TAG", "[Insert Affiliate] Expected transaction stored successfully.");
+                    verboseLog("Expected transaction stored successfully on server");
                 } else {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getErrorStream()));
                     StringBuilder response = new StringBuilder();
@@ -197,9 +230,11 @@ public class InsertAffiliateManager {
                         response.append(line);
                     }
                     Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to store expected transaction with status code: " + responseCode + ". Response: " + response);
+                    verboseLog("API error response: " + response);
                 }
             } catch (Exception e) {
                 Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error storing expected transaction: " + e.getMessage());
+                verboseLog("Network error storing transaction: " + e.getMessage());
             } finally {
                 if (connection != null) {
                     connection.disconnect();
@@ -210,25 +245,35 @@ public class InsertAffiliateManager {
 
     // MARK: Setting Insert Affiliate Link
     public static void setInsertAffiliateIdentifier(Activity activity, String referringLink) {
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Setting affiliate identifier.");
+        verboseLog("Input referringLink: " + referringLink);
+        
         // Check if the companyCode is set
         if (companyCode == null || companyCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialize the SDK with a valid company code.");
+            verboseLog("Company code missing, cannot proceed with API call");
             return;
         }
 
+        verboseLog("Checking if referring link is already a short code...");
         // Check if the link is already a short code
         if (isShortCode(referringLink)) {
-            Log.e("InsertAffiliate TAG","[Insert Affiliate] Referring link is already a short code");
+            Log.i("InsertAffiliate TAG","[Insert Affiliate] Referring link is already a short code.");
+            verboseLog("Link is already a short code, storing directly");
             storeInsertAffiliateReferringLink(activity, referringLink);
             return;
         }
+        
+        verboseLog("Link is not a short code, will convert via API");
 
+        verboseLog("Encoding referring link for API call...");
         // Encoding the long form referring link before using it to try and get the Short Link from our API
         String encodedAffiliateLink;
         try {
             encodedAffiliateLink = URLEncoder.encode(referringLink, StandardCharsets.UTF_8.toString());
         } catch (Exception e) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to encode referring link: " + e.getMessage());
+            verboseLog("Error encoding referring link: " + e.getMessage());
             storeInsertAffiliateReferringLink(activity, referringLink);
             return;
         }
@@ -238,6 +283,8 @@ public class InsertAffiliateManager {
             + "&deepLinkUrl=" 
             + encodedAffiliateLink;
 
+        verboseLog("Making API request to convert deep link to short code...");
+        
         try {
             URL url = new URL(urlString);
             // Perform the GET request in a new thread
@@ -308,32 +355,46 @@ public class InsertAffiliateManager {
     }
 
     public static String returnInsertAffiliateIdentifier(Activity activity) {
+        verboseLog("Getting insert affiliate identifier...");
         SharedPreferences sharedPreferences
                 = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
         );
         String shortUniqueDeviceID = sharedPreferences.getString("shortUniqueDeviceID", "");
         String referring_link = sharedPreferences.getString("referring_link", "");
+        
+        verboseLog("SharedPreferences - referringLink: " + (referring_link.isEmpty() ? "empty" : referring_link) + ", shortUniqueDeviceID: " + (shortUniqueDeviceID.isEmpty() ? "empty" : shortUniqueDeviceID));
 
         if (referring_link == null || referring_link.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            verboseLog("No affiliate identifier found in storage");
             return null;
         }
-
-        return referring_link + "-" + shortUniqueDeviceID;
+        
+        String identifier = referring_link + "-" + shortUniqueDeviceID;
+        verboseLog("Found identifier: " + identifier);
+        return identifier;
     }
 
     // MARK: Event Tracking
     public static String trackEvent(Activity activity, String eventName) {
+        verboseLog("Tracking event: " + eventName);
+        
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
+            verboseLog("Cannot track event: no company code available");
+            return "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.";
+        }
+        
+        Log.i("InsertAffiliate TAG", "track event called with - companyCode: " + companyCode);
+        
         String deepLinkParam = returnInsertAffiliateIdentifier(activity);
         if (deepLinkParam == null) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
+            verboseLog("Cannot track event: no affiliate identifier available");
             return "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events by opening a link from an affiliate.";
         }
-
-        if (companyCode == null || companyCode.isEmpty()) {
-            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
-            return "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.";
-        }
+        
+        verboseLog("Deep link param: " + deepLinkParam);
 
         JsonObject jsonParams = new JsonObject();
         jsonParams.addProperty("eventName", eventName);
@@ -345,6 +406,9 @@ public class InsertAffiliateManager {
         }
 
         jsonParams.addProperty("deepLinkParam", deepLinkParam);
+        
+        verboseLog("Track event payload: " + jsonParams.toString());
+        verboseLog("Making API call to track event...");
 
         Retrofit retrofit = new Retrofit.Builder()
             .baseUrl(Api.BASE_URL_INSERT_AFFILIATE)
@@ -359,19 +423,23 @@ public class InsertAffiliateManager {
         call.enqueue(new Callback<JsonObject>() {
             public void onResponse(Call<JsonObject> call, Response<JsonObject> response) {
                 int responseCode = response.code();
+                verboseLog("Track event API response status: " + responseCode);
                 Log.d("InsertAffiliate response: ", "" + response.body());
 
                 if (responseCode == 200) {
                     responseMessage = "[Insert Affiliate] Track Event Success";
                     Log.i("InsertAffiliate TAG", "[Insert Affiliate] Event tracked successfully");
+                    verboseLog("Event tracked successfully on server");
                 } else {
                     responseMessage = "[Insert Affiliate] Failed to track event with status code: " + responseCode;
                     Log.i("InsertAffiliate TAG", "[Insert Affiliate] Failed to track event with status code: " + responseCode);
+                    verboseLog("Track event API error: status " + responseCode + ", response: " + response.body());
                 }
             }
 
             public void onFailure(Call<JsonObject> call, Throwable t) {
-                Log.i("InsertAffiliate TAG", "Error While Validating Receipt");
+                Log.i("InsertAffiliate TAG", "Error While Tracking Event");
+                verboseLog("Network error tracking event: " + t.getMessage());
                 responseMessage = "Error";
             }
         });
@@ -590,6 +658,16 @@ public class InsertAffiliateManager {
             return "";
         }
         return input.replaceAll("[^a-zA-Z0-9]", "");
+    }
+
+    /**
+     * Helper method for verbose logging
+     * @param message The message to log if verbose logging is enabled
+     */
+    private static void verboseLog(String message) {
+        if (verboseLogging) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] " + message);
+        }
     }
 
     /**
