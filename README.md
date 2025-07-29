@@ -329,3 +329,351 @@ Set the Affiliate Identifier (required for tracking):
 ```java
 InsertAffiliateManager.setShortCode(activity, "JOIN123456");
 ```
+
+### 2. Discounts for Users → Offer Codes / Dynamic Product IDs
+
+The SDK allows you to apply dynamic modifiers to in-app purchases based on whether the app was installed via an affiliate. These modifiers can be used to swap the default product ID for a discounted or trial-based one - similar to applying an offer code.
+
+#### How It Works
+
+When a user clicks an affiliate link or enters a short code linked to an offer (set up in the **Insert Affiliate Dashboard**), the SDK auto-populates the `OfferCode` field with a relevant modifier (e.g., `_oneWeekFree`). You can append this to your base product ID to dynamically display the correct subscription.
+
+#### Basic Usage
+
+##### 1. Automatic Offer Code Fetching
+If an affiliate short code is stored, the SDK automatically fetches and saves the associated offer code modifier.
+
+##### 2. Access the Offer Code Modifier
+The offer code modifier is available through the context:
+
+```java
+// Get the stored offer code modifier (returns null if none exists)
+String offerCodeModifier = InsertAffiliateManager.getStoredOfferCode(activity);
+
+if (offerCodeModifier != null) {
+    Log.i("MyApp", "Offer code modifier found: " + offerCodeModifier);
+    // Use the modifier to create a dynamic product ID
+} else {
+    Log.i("MyApp", "No offer code modifier found, using default product");
+}
+```
+
+##### Setup Requirements
+
+#### Insert Affiliate Setup Instructions
+
+1. Go to your Insert Affiliate dashboard at [app.insertaffiliate.com/affiliates](https://app.insertaffiliate.com/affiliates)
+2. Select the affiliate you want to configure
+3. Click "View" to access the affiliate's settings
+4. Assign an iOS IAP Modifier to the affiliate (e.g., `_oneWeekFree`, `_threeMonthsFree`)
+5. Assign an Android IAP Modifier to the affiliate (e.g., `-oneweekfree`, `-threemonthsfree`)
+5. Save the settings
+
+Once configured, when users click that affiliate's links or enter their short codes, your app will automatically receive the modifier and can load the appropriate discounted product.
+
+#### Google Play Console Configuration
+There are multiple ways you can configure your products in Google Play Console:
+
+1. **Multiple Products Approach**: Create both a base and a promotional product:
+   - Base product: `oneMonthSubscription`
+   - Promo product: `oneMonthSubscription-oneweekfree`
+
+2. **Single Product with Multiple Base Plans**: Create one product with multiple base plans, one with an offer attached
+
+3. **Developer Triggered Offers**: Have one base product and apply the offer through developer-triggered offers
+
+4. **Base Product with Intro Offers**: Have one base product that includes an introductory offer
+
+Any of these approaches are suitable and work with the SDK. The important part is that your product naming follows the pattern where the offer code modifier can be appended to identify the promotional version.
+
+**If using the Multiple Products Approach:**
+- Ensure **both** products are activated and available for purchase.
+- Generate a release to at least **Internal Testing** to make the products available in your current app build
+
+**Product Naming Pattern:**
+- Follow the pattern: `{baseProductId}{OfferCode}`
+- Example: `oneMonthSubscription` + `_oneWeekFree` = `oneMonthSubscription_oneWeekFree`
+
+---
+
+#### RevenueCat Dashboard Configuration (Android)
+
+If using RevenueCat for Android:
+
+1. Create separate offerings:
+   - Base offering: `premium_monthly`
+   - Modified offering: `premium_monthly_oneWeekFree`
+
+2. Add both product IDs under different offerings in RevenueCat.
+
+3. Ensure modified products follow this naming pattern: `{baseProductId}{cleanOfferCode}`. e.g. `premium_monthly_oneWeekFree`
+
+### Android Integration Examples
+
+#### Example 1: Google Play Billing Library Integration
+
+```java
+import com.android.billingclient.api.*;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+import java.util.*;
+
+public class SubscriptionManager {
+    private static final String BASE_PRODUCT_ID = "oneMonthSubscription";
+    private BillingClient billingClient;
+    private Activity activity;
+    private List<SkuDetails> availableProducts = new ArrayList<>();
+
+    public SubscriptionManager(Activity activity) {
+        this.activity = activity;
+        initializeBillingClient();
+    }
+
+    private void initializeBillingClient() {
+        billingClient = BillingClient.newBuilder(activity)
+            .setListener(purchaseUpdateListener)
+            .enablePendingPurchases()
+            .build();
+
+        billingClient.startConnection(new BillingClientStateListener() {
+            @Override
+            public void onBillingSetupFinished(BillingResult billingResult) {
+                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    fetchAvailableProducts();
+                }
+            }
+
+            @Override
+            public void onBillingServiceDisconnected() {
+                // Try to restart the connection on the next request
+            }
+        });
+    }
+
+    public void fetchAvailableProducts() {
+        // Get offer code from Insert Affiliate SDK
+        String offerCode = InsertAffiliateManager.getStoredOfferCode(activity);
+        
+        List<String> skuList = new ArrayList<>();
+        String dynamicProductId = BASE_PRODUCT_ID;
+        
+        if (offerCode != null && !offerCode.isEmpty()) {
+            // Construct dynamic product ID with offer code
+            dynamicProductId = BASE_PRODUCT_ID + offerCode;
+            skuList.add(dynamicProductId);
+            Log.i("SubscriptionManager", "Looking for promotional product: " + dynamicProductId);
+        }
+        
+        // Always include base product as fallback
+        skuList.add(BASE_PRODUCT_ID);
+
+        SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
+        params.setSkusList(skuList).setType(BillingClient.SkuType.SUBS);
+
+        billingClient.querySkuDetailsAsync(params.build(),
+            new SkuDetailsResponseListener() {
+                @Override
+                public void onSkuDetailsResponse(BillingResult billingResult,
+                                               List<SkuDetails> skuDetailsList) {
+                    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        availableProducts = skuDetailsList;
+                        
+                        // Sort to prioritize promotional products
+                        if (offerCode != null) {
+                            String finalDynamicProductId = dynamicProductId;
+                            availableProducts.sort((a, b) -> 
+                                a.getSku().equals(finalDynamicProductId) ? -1 : 1);
+                        }
+                        
+                        displayProducts();
+                    } else {
+                        Log.e("SubscriptionManager", "Failed to query SKU details: " + 
+                              billingResult.getDebugMessage());
+                        // Fallback to base product only
+                        fetchBaseProductOnly();
+                    }
+                }
+            });
+    }
+
+    private void fetchBaseProductOnly() {
+        List<String> skuList = Arrays.asList(BASE_PRODUCT_ID);
+        SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
+        params.setSkusList(skuList).setType(BillingClient.SkuType.SUBS);
+
+        billingClient.querySkuDetailsAsync(params.build(),
+            new SkuDetailsResponseListener() {
+                @Override
+                public void onSkuDetailsResponse(BillingResult billingResult,
+                                               List<SkuDetails> skuDetailsList) {
+                    if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                        availableProducts = skuDetailsList;
+                        displayProducts();
+                    }
+                }
+            });
+    }
+
+    private void displayProducts() {
+        // Update UI with available products
+        for (SkuDetails skuDetails : availableProducts) {
+            Log.i("SubscriptionManager", "Available product: " + skuDetails.getSku() + 
+                  " - " + skuDetails.getPrice());
+        }
+        
+        String offerCode = InsertAffiliateManager.getStoredOfferCode(activity);
+        if (offerCode != null && !availableProducts.isEmpty()) {
+            String primaryProductId = availableProducts.get(0).getSku();
+            if (primaryProductId.contains(offerCode)) {
+                Log.i("SubscriptionManager", "🎉 Promotional pricing applied!");
+                // Show special offer UI
+            }
+        }
+    }
+
+    public void launchPurchaseFlow() {
+        if (!availableProducts.isEmpty()) {
+            SkuDetails skuDetails = availableProducts.get(0); // Use primary product
+            
+            BillingFlowParams flowParams = BillingFlowParams.newBuilder()
+                .setSkuDetails(skuDetails)
+                .build();
+                
+            BillingResult billingResult = billingClient.launchBillingFlow(activity, flowParams);
+            
+            if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+                Log.e("SubscriptionManager", "Failed to launch purchase flow: " + 
+                      billingResult.getDebugMessage());
+            }
+        }
+    }
+
+    private PurchasesUpdatedListener purchaseUpdateListener = new PurchasesUpdatedListener() {
+        @Override
+        public void onPurchasesUpdated(BillingResult billingResult, List<Purchase> purchases) {
+            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK
+                && purchases != null) {
+                for (Purchase purchase : purchases) {
+                    handlePurchase(purchase);
+                }
+            } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
+                Log.i("SubscriptionManager", "User canceled the purchase");
+            } else {
+                Log.e("SubscriptionManager", "Purchase failed: " + billingResult.getDebugMessage());
+            }
+        }
+    };
+
+    private void handlePurchase(Purchase purchase) {
+        // Store the expected transaction for Insert Affiliate tracking
+        InsertAffiliateManager.storeExpectedPlayStoreTransaction(activity, purchase.getPurchaseToken());
+        
+        // Acknowledge the purchase
+        if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
+            if (!purchase.isAcknowledged()) {
+                AcknowledgePurchaseParams acknowledgePurchaseParams =
+                    AcknowledgePurchaseParams.newBuilder()
+                        .setPurchaseToken(purchase.getPurchaseToken())
+                        .build();
+                        
+                billingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
+                    @Override
+                    public void onAcknowledgePurchaseResponse(BillingResult billingResult) {
+                        Log.i("SubscriptionManager", "Purchase acknowledged");
+                    }
+                });
+            }
+        }
+    }
+}
+```
+
+#### Example 2: RevenueCat Integration with Offer Codes
+
+```java
+import com.revenuecat.purchases.*;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class RevenueCatSubscriptionManager {
+    private static final String BASE_OFFERING = "premium_monthly";
+    private Activity activity;
+
+    public RevenueCatSubscriptionManager(Activity activity) {
+        this.activity = activity;
+    }
+
+    public void fetchOfferingsAndPurchase() {
+        // Get offer code from Insert Affiliate SDK
+        String offerCode = InsertAffiliateManager.getStoredOfferCode(activity);
+        
+        Purchases.getSharedInstance().getOfferings(new ReceiveOfferingsCallback() {
+            @Override
+            public void onReceived(@NonNull Offerings offerings) {
+                Offering targetOffering = null;
+                String targetOfferingKey = BASE_OFFERING;
+                
+                if (offerCode != null && !offerCode.isEmpty()) {
+                    // Try to find promotional offering
+                    String promoOfferingKey = BASE_OFFERING + offerCode;
+                    targetOffering = offerings.get(promoOfferingKey);
+                    
+                    if (targetOffering != null) {
+                        Log.i("RevenueCat", "Found promotional offering: " + promoOfferingKey);
+                        targetOfferingKey = promoOfferingKey;
+                    } else {
+                        Log.i("RevenueCat", "Promotional offering not found, using base offering");
+                    }
+                }
+                
+                // Fallback to base offering if promo not found
+                if (targetOffering == null) {
+                    targetOffering = offerings.get(BASE_OFFERING);
+                }
+                
+                if (targetOffering != null && !targetOffering.getAvailablePackages().isEmpty()) {
+                    displayOfferingAndPurchase(targetOffering, offerCode != null);
+                } else {
+                    Log.e("RevenueCat", "No offerings available");
+                }
+            }
+
+            @Override
+            public void onError(@NonNull PurchasesError error) {
+                Log.e("RevenueCat", "Error fetching offerings: " + error.getMessage());
+            }
+        });
+    }
+
+    private void displayOfferingAndPurchase(Offering offering, boolean isPromotional) {
+        Package packageToPurchase = offering.getAvailablePackages().get(0);
+        
+        if (isPromotional) {
+            Log.i("RevenueCat", "🎉 Special offer applied!");
+            // Update UI to show promotional pricing
+        }
+        
+        Log.i("RevenueCat", "Product: " + packageToPurchase.getProduct().getTitle() + 
+              " - " + packageToPurchase.getProduct().getPrice());
+
+        // Launch purchase
+        Purchases.getSharedInstance().purchasePackage(
+            activity,
+            packageToPurchase,
+            new PurchaseCallback() {
+                @Override
+                public void onCompleted(@NonNull StoreTransaction storeTransaction, @NonNull CustomerInfo customerInfo) {
+                    Log.i("RevenueCat", "Purchase completed successfully");
+                    // Purchase successful - RevenueCat handles the rest via webhook
+                }
+
+                @Override
+                public void onError(@NonNull PurchasesError error, boolean userCancelled) {
+                    if (userCancelled) {
+                        Log.i("RevenueCat", "User cancelled purchase");
+                    } else {
+                        Log.e("RevenueCat", "Purchase failed: " + error.getMessage());
+                    }
+                }
+            }
+        );
+    }
+}
