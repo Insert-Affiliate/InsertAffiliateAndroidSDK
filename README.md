@@ -329,3 +329,33 @@ Set the Affiliate Identifier (required for tracking):
 ```java
 InsertAffiliateManager.setShortCode(activity, "JOIN123456");
 ```
+
+### 3. Offer Codes (Beta)
+
+### What are Offer Codes?
+
+Offer codes are promotional codes that can be redeemed directly in the Google Play Store. When users click on affiliate links that contain offer codes, the SDK can automatically fetch the associated offer code and redirect users to the Google Play Store redemption page.
+
+**Example Use Case**: An affiliate promotes your app with a special discount. When users click the affiliate's link, your app automatically detects if there's an offer code available and redirects them to redeem it in the Google Play Store, providing a seamless experience while still tracking the affiliate attribution.
+
+### Using Offer Codes
+
+The SDK provides three methods for working with offer codes:
+
+#### 1. Fetch an Offer Code
+
+Use `fetchOfferCode` to retrieve an offer code for a given affiliate link:
+
+```java
+InsertAffiliateManager.fetchOfferCode(affiliateLink, new InsertAffiliateManager.OfferCodeCallback() {
+    @Override
+    public void onOfferCodeReceived(String offerCode) {
+        if (offerCode != null) {
+            Log.i("MyApp", "Received offer code: " + offerCode);
+            // Handle the offer code as needed
+        } else {
+            Log.i("MyApp", "No offer code found for this affiliate link");
+        }
+    }
+});
+```

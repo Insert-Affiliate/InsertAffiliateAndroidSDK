@@ -2,7 +2,9 @@ package com.aks.insertaffiliateandroid;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.util.Base64;
@@ -290,6 +292,8 @@ public class InsertAffiliateManager {
     }
 
     private static void storeInsertAffiliateReferringLink(Activity activity, String referringLink) {
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Storing affiliate identifier: " + referringLink);
+        
         SharedPreferences sharedPreferences
                 = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
         );
@@ -298,6 +302,9 @@ public class InsertAffiliateManager {
                 .edit();
         editor.putString("referring_link", referringLink);
         editor.commit();
+        
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Attempting to fetch offer code for stored affiliate identifier...");
+        retrieveAndStoreOfferCode(activity, referringLink);
     }
 
     public static String returnInsertAffiliateIdentifier(Activity activity) {
@@ -427,5 +434,168 @@ public class InsertAffiliateManager {
         });
 
         return message;
+    }
+
+    // MARK: Offer Codes
+    /**
+     * Fetches an offer code from the Insert Affiliate API for the given affiliate link
+     * @param affiliateLink The affiliate link to fetch the offer code for
+     * @param callback Callback that receives the offer code (null if not found or error)
+     */
+    public static void fetchOfferCode(String affiliateLink, OfferCodeCallback callback) {
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot fetch offer code: no company code available");
+            callback.onOfferCodeReceived(null);
+            return;
+        }
+        
+        if (affiliateLink == null || affiliateLink.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to encode affiliate link");
+            callback.onOfferCodeReceived(null);
+            return;
+        }
+
+        String encodedAffiliateLink;
+        try {
+            encodedAffiliateLink = URLEncoder.encode(affiliateLink, StandardCharsets.UTF_8.toString());
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to encode affiliate link");
+            callback.onOfferCodeReceived(null);
+            return;
+        }
+
+        String offerCodeUrlString = "https://api.insertaffiliate.com/v1/affiliateReturnOfferCode/" + companyCode + "/" + encodedAffiliateLink + "?platformType=android";
+
+        try {
+            URL offerCodeUrl = new URL(offerCodeUrlString);
+            
+            new Thread(() -> {
+                HttpURLConnection connection = null;
+                try {
+                    connection = (HttpURLConnection) offerCodeUrl.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setRequestProperty("Content-Type", "application/json");
+
+                    int responseCode = connection.getResponseCode();
+                    if (responseCode == HttpURLConnection.HTTP_OK) {
+                        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                        StringBuilder response = new StringBuilder();
+                        String inputLine;
+
+                        while ((inputLine = in.readLine()) != null) {
+                            response.append(inputLine);
+                        }
+                        in.close();
+
+                        String rawOfferCode = response.toString();
+
+                        // Check for specific error strings from API
+                        if (rawOfferCode.contains("errorofferCodeNotFound") ||
+                            rawOfferCode.contains("errorAffiliateoffercodenotfoundinanycompany") ||
+                            rawOfferCode.contains("errorAffiliateoffercodenotfoundinanycompanyAffiliatelinkwas") ||
+                            rawOfferCode.contains("Routenotfound")) {
+                            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Offer code not found or invalid: " + rawOfferCode);
+                            callback.onOfferCodeReceived(null);
+                        } else {
+                            String cleanedOfferCode = cleanOfferCode(rawOfferCode);
+                            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Successfully fetched and cleaned offer code: " + cleanedOfferCode);
+                            callback.onOfferCodeReceived(cleanedOfferCode);
+                        }
+                    } else {
+                        Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching offer code: HTTP " + responseCode);
+                        callback.onOfferCodeReceived(null);
+                    }
+                } catch (Exception e) {
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching offer code: " + e.getMessage());
+                    callback.onOfferCodeReceived(null);
+                } finally {
+                    if (connection != null) {
+                        connection.disconnect();
+                    }
+                }
+            }).start();
+        } catch (MalformedURLException e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Invalid offer code URL");
+            callback.onOfferCodeReceived(null);
+        }
+    }
+
+    /**
+     * Retrieves and stores an offer code for the given affiliate link
+     * @param activity The activity context
+     * @param affiliateLink The affiliate link to fetch the offer code for
+     */
+    public static void retrieveAndStoreOfferCode(Activity activity, String affiliateLink) {
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Attempting to retrieve and store offer code for: " + affiliateLink);
+        
+        fetchOfferCode(affiliateLink, new OfferCodeCallback() {
+            @Override
+            public void onOfferCodeReceived(String offerCode) {
+                SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                
+                if (offerCode != null && !offerCode.isEmpty()) {
+                    // Store the offer code
+                    editor.putString("offer_code", offerCode);
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Successfully stored offer code: " + offerCode);
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Offer code retrieved and stored successfully");
+                } else {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] No valid offer code found to store");
+                    // Clear stored offer code if none found
+                    editor.putString("offer_code", "");
+                }
+                
+                editor.apply();
+            }
+        });
+    }
+    
+    /**
+     * Gets the stored offer code from SharedPreferences
+     * @param activity The activity context
+     * @return The stored offer code, or null if none exists
+     */
+    public static String getStoredOfferCode(Activity activity) {
+        try {
+            SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+            String offerCode = sharedPreferences.getString("offer_code", null);
+            return (offerCode != null && !offerCode.isEmpty()) ? offerCode : null;
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error getting stored offer code: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Cleans an offer code by removing special characters, keeping only alphanumeric, underscores, and dashes
+     * @param offerCode The offer code to clean
+     * @return The cleaned offer code
+     */
+    private static String cleanOfferCode(String offerCode) {
+        if (offerCode == null) {
+            return "";
+        }
+        // Remove special characters, keep only alphanumeric, underscores, and dashes
+        return offerCode.replaceAll("[^a-zA-Z0-9_-]", "");
+    }
+    
+    /**
+     * Removes special characters from a string, keeping only alphanumeric characters
+     * @param input The input string to clean
+     * @return The cleaned string with only alphanumeric characters
+     * @deprecated Use cleanOfferCode instead
+     */
+    private static String removeSpecialCharacters(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input.replaceAll("[^a-zA-Z0-9]", "");
+    }
+
+    /**
+     * Callback interface for offer code fetching operations
+     */
+    public interface OfferCodeCallback {
+        void onOfferCodeReceived(String offerCode);
     }
 }
