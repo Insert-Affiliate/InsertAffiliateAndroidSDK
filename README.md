@@ -283,6 +283,314 @@ public class MainActivity extends AppCompatActivity {
 }
 ```
 
+### Using the SDK with AppsFlyer (Android)
+
+To set up deep linking with AppsFlyer, follow these steps:
+
+1. Create a [OneLink](https://support.appsflyer.com/hc/en-us/articles/208874366-Create-a-OneLink-link-for-your-campaigns) in AppsFlyer and pass it to our dashboard when an affiliate signs up.
+   - Example: [Create Affiliate](https://docs.insertaffiliate.com/create-affiliate).
+2. Initialize AppsFlyer SDK and set up deep link handling in your app.
+
+#### Prerequisites
+
+- AppsFlyer Dev Key from your AppsFlyer dashboard
+- Android package name configured in AppsFlyer
+- Minimum Android Gradle Plugin 7.0+
+
+#### Install & Configure Dependencies
+
+1. **Add AppsFlyer SDK** to your app's `build.gradle`:
+
+```java
+dependencies {
+    implementation 'com.appsflyer:af-android-sdk:6+'
+    implementation 'com.android.installreferrer:installreferrer:2.2'
+    implementation 'com.github.Insert-Affiliate:InsertAffiliateAndroidSDK:v1.1.4'
+}
+```
+
+2. **Sync your project** to ensure dependencies are downloaded.
+
+#### Manifest Setup
+
+1. **Add required permissions** to your `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+```
+
+2. **Configure intent filters** for OneLink deep linking in your `MainActivity`:
+
+```xml
+<activity android:name=".MainActivity" android:exported="true">
+    <!-- OneLink deep linking -->
+    <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data 
+            android:scheme="https" 
+            android:host="{{ONELINK_SUBDOMAIN}}.onelink.me" />
+    </intent-filter>
+    
+    <!-- Custom scheme (optional) -->
+    <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data 
+            android:scheme="{{SCHEME}}" 
+            android:host="open" />
+    </intent-filter>
+</activity>
+```
+
+3. **Add AppsFlyer metadata** to your `<application>` tag:
+
+```xml
+<application>
+    <meta-data
+        android:name="com.appsflyer.ApiKey"
+        android:value="{{APPSFLYER_DEV_KEY}}" />
+</application>
+```
+
+#### Initialize AppsFlyer and the SDK
+
+1. **Create an Application class** if you don't have one:
+
+```java
+import com.appsflyer.AppsFlyerLib;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class {{APPLICATION_CLASS}} extends Application {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        
+        // Initialize Insert Affiliate SDK
+        InsertAffiliateManager.init(this, "{{your_company_code}}");
+        
+        // Initialize AppsFlyer
+        AppsFlyerLib.getInstance().init("{{APPSFLYER_DEV_KEY}}", null, this);
+        AppsFlyerLib.getInstance().start(this);
+    }
+}
+```
+
+2. **Register your Application class** in `AndroidManifest.xml`:
+
+```xml
+<application android:name=".{{APPLICATION_CLASS}}">
+```
+
+#### Handle Deep Links/Attribution
+
+**Example with RevenueCat:**
+
+```java
+import com.appsflyer.AppsFlyerConversionListener;
+import com.appsflyer.AppsFlyerLib;
+import com.revenuecat.purchases.Purchases;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+    private InsertAffiliateManager insertAffiliateManager;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        insertAffiliateManager = new InsertAffiliateManager(this);
+        
+        // Handle intent deep links for direct app launch
+        handleIntent(getIntent());
+        
+        // Set up AppsFlyer attribution listener
+        AppsFlyerConversionListener conversionListener = new AppsFlyerConversionListener() {
+            @Override
+            public void onConversionDataSuccess(java.util.Map<String, Object> conversionData) {
+                // Handle install attribution data if needed
+            }
+
+            @Override
+            public void onConversionDataFail(String errorMessage) {
+                // Handle error
+            }
+
+            @Override
+            public void onAppOpenAttribution(java.util.Map<String, String> attributionData) {
+                handleAttributionData(attributionData);
+            }
+
+            @Override
+            public void onAttributionFailure(String errorMessage) {
+                // Handle error
+            }
+        };
+
+        AppsFlyerLib.getInstance().registerConversionListener(this, conversionListener);
+    }
+
+    private void handleAttributionData(java.util.Map<String, String> attributionData) {
+        // Extract deep link from AppsFlyer data
+        String link = attributionData.get("af_dp");
+        if (link == null || link.isEmpty()) {
+            link = attributionData.get("af_deeplink");
+        }
+        if (link == null || link.isEmpty()) {
+            link = attributionData.get("link");
+        }
+
+        if (link != null && !link.isEmpty()) {
+            // Pass to Insert Affiliate SDK
+            insertAffiliateManager.setInsertAffiliateIdentifier(this, link);
+            
+            // Set RevenueCat attribute
+            String affiliateId = InsertAffiliateManager.returnInsertAffiliateIdentifier(this);
+            if (affiliateId != null && !affiliateId.isEmpty()) {
+                java.util.Map<String, String> attributes = new java.util.HashMap<>();
+                attributes.put("insert_affiliate", affiliateId);
+                Purchases.getSharedInstance().setAttributes(attributes);
+            }
+        }
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent != null && intent.getData() != null) {
+            String deepLink = intent.getData().toString();
+            insertAffiliateManager.setInsertAffiliateIdentifier(this, deepLink);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+}
+```
+
+**Example with Iaptic/Google Play Direct:**
+
+```java
+public class MainActivity extends AppCompatActivity {
+    private InsertAffiliateManager insertAffiliateManager;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        
+        insertAffiliateManager = new InsertAffiliateManager(this);
+        handleIntent(getIntent());
+        
+        AppsFlyerConversionListener conversionListener = new AppsFlyerConversionListener() {
+            @Override
+            public void onConversionDataSuccess(java.util.Map<String, Object> conversionData) {
+                // Handle install attribution
+            }
+
+            @Override
+            public void onConversionDataFail(String errorMessage) {
+                // Handle error
+            }
+
+            @Override
+            public void onAppOpenAttribution(java.util.Map<String, String> attributionData) {
+                String link = attributionData.get("af_dp");
+                if (link == null || link.isEmpty()) {
+                    link = attributionData.get("af_deeplink");
+                }
+                if (link == null || link.isEmpty()) {
+                    link = attributionData.get("link");
+                }
+
+                if (link != null && !link.isEmpty()) {
+                    insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, link);
+                }
+            }
+
+            @Override
+            public void onAttributionFailure(String errorMessage) {
+                // Handle error
+            }
+        };
+
+        AppsFlyerLib.getInstance().registerConversionListener(this, conversionListener);
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent != null && intent.getData() != null) {
+            String deepLink = intent.getData().toString();
+            insertAffiliateManager.setInsertAffiliateIdentifier(this, deepLink);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIntent(intent);
+    }
+}
+```
+
+#### SHA-256 Certificate & App Links
+
+1. **Get your signing certificate SHA-256** fingerprint:
+
+```bash
+# Debug keystore
+keytool -list -v -alias androiddebugkey -keystore ~/.android/debug.keystore -storepass android -keypass android | grep SHA256
+
+# Release keystore (replace with your keystore path)
+keytool -list -v -alias your-key-alias -keystore /path/to/your-keystore.jks
+```
+
+2. **Configure in AppsFlyer OneLink:**
+   - Add your `{{PACKAGE_NAME}}` to Associated Apps
+   - Add the SHA-256 fingerprint from step 1
+   - For Play App Signing, use the SHA-256 from Google Play Console → Setup → App integrity
+
+#### Verifying the Integration
+
+1. **Test deep link** on a connected device:
+
+```bash
+adb shell am start -a android.intent.action.VIEW -d "https://{{ONELINK_SUBDOMAIN}}.onelink.me/{{LINK_ID}}/test"
+```
+
+2. **Check logs** for successful attribution:
+
+```bash
+adb logcat | grep -E "(AppsFlyer|Insert Affiliate)"
+```
+
+3. **Verify affiliate identifier** is set:
+
+```java
+String affiliateId = InsertAffiliateManager.returnInsertAffiliateIdentifier(this);
+Log.d("InsertAffiliate", "Current affiliate ID: " + affiliateId);
+```
+
+#### Troubleshooting
+
+- **App opens Play Store instead of app**: Check that your package name and SHA-256 are correctly configured in AppsFlyer OneLink settings
+- **No attribution data received**: Ensure `registerConversionListener` is called before `AppsFlyerLib.getInstance().start()`
+- **Deep links not working**: Verify intent-filter configuration and test with `adb` command above
+
+| Placeholder | Example/Note |
+|-------------|--------------|
+| `{{APPSFLYER_DEV_KEY}}` | Your AppsFlyer Dev Key |
+| `{{APPLICATION_CLASS}}` | e.g., MyApplication |
+| `{{PACKAGE_NAME}}` | e.g., com.yourcompany.yourapp |
+| `{{ONELINK_SUBDOMAIN}}` | e.g., yourapp (from yourapp.onelink.me) |
+| `{{SCHEME}}` | Custom scheme if applicable (e.g., myapp) |
+```
+
 ## Additional Features
 
 ### 1: Event Tracking (Beta)
