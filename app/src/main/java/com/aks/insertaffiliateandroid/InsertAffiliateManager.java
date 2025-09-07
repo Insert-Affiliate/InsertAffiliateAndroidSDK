@@ -25,6 +25,8 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import okhttp3.OkHttpClient;
 import retrofit2.Call;
@@ -41,6 +43,10 @@ public class InsertAffiliateManager {
     private static String responseMessage = null;
     private static boolean verboseLogging = false;
     private static boolean insertLinks = false;
+    
+    // Thread-safe callback mechanism
+    private static final ExecutorService callbackExecutor = Executors.newSingleThreadExecutor();
+    private static volatile InsertAffiliateIdentifierChangeCallback identifierChangeCallback;
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
@@ -92,6 +98,18 @@ public class InsertAffiliateManager {
     public static void reset() {
         companyCode = null;
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK has been reset.");
+    }
+
+    /**
+     * Sets a callback to be notified whenever the affiliate identifier changes
+     * @param callback The callback to be invoked when the identifier changes
+     */
+    public static void setInsertAffiliateIdentifierChangeCallback(InsertAffiliateIdentifierChangeCallback callback) {
+        identifierChangeCallback = callback;
+        if (verboseLogging) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Affiliate identifier change callback " + 
+                  (callback != null ? "set" : "removed"));
+        }
     }
 
     // MARK: Short Codes
@@ -366,6 +384,9 @@ public class InsertAffiliateManager {
                 .edit();
         editor.putString("referring_link", referringLink);
         editor.commit();
+        
+        // Notify callback of identifier change
+        notifyIdentifierChange(activity);
         
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] Attempting to fetch offer code for stored affiliate identifier...");
         retrieveAndStoreOfferCode(activity, referringLink);
@@ -782,9 +803,35 @@ public class InsertAffiliateManager {
     }
 
     /**
+     * Safely notifies the affiliate identifier change callback
+     * @param activity The activity context to get the current identifier
+     */
+    private static void notifyIdentifierChange(Activity activity) {
+        InsertAffiliateIdentifierChangeCallback callback = identifierChangeCallback;
+        if (callback != null) {
+            String identifier = returnInsertAffiliateIdentifier(activity);
+            callbackExecutor.execute(() -> {
+                try {
+                    callback.onIdentifierChanged(identifier);
+                    verboseLog("Notified callback of identifier change: " + identifier);
+                } catch (Exception e) {
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in identifier change callback: " + e.getMessage());
+                }
+            });
+        }
+    }
+
+    /**
      * Callback interface for offer code fetching operations
      */
     public interface OfferCodeCallback {
         void onOfferCodeReceived(String offerCode);
+    }
+
+    /**
+     * Callback interface for affiliate identifier change notifications
+     */
+    public interface InsertAffiliateIdentifierChangeCallback {
+        void onIdentifierChanged(String identifier);
     }
 }

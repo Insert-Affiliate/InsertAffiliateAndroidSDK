@@ -234,6 +234,42 @@ insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" +
 {{ referring_link }};
 ```
 
+### Deep Linking with Insert Links
+
+Insert Links by Insert Affiliate supports direct deep linking into your app. This allows you to track affiliate attribution when end users are referred to your app by clicking on one of your affiliates Insert Links.
+
+#### Initial Setup
+
+Before you can use Insert Links, you must complete the setup steps in [our docs](https://docs.insertaffiliate.com/insert-links)
+
+
+#### Required Callback
+```java
+public class MainActivity extends AppCompatActivity {
+    InsertAffiliateManager insertAffiliateManager;
+    private ActivityMainBinding binding;
+    
+    @Override
+    protected void onCreate() {
+        super.onStart();
+        
+        // Set up callback to be notified when affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+            @Override
+            public void onIdentifierChanged(String identifier) {
+                // Log the new identifier to console
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate identifier changed to: " + identifier);
+
+                // *** Required if using RevenueCat *** //
+                Purchases.sharedInstance.setAttributes(mapOf("insert_affiliate" to insertAffiliateIdentifier));
+                // *** End of RevenueCat section *** //
+            }
+        });
+    }
+
+}
+```
+
 ### Deep Linking with Branch.io
 To set up deep linking with Branch.io, follow these steps:
 
