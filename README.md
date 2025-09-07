@@ -68,6 +68,27 @@ public class MainActivity extends AppCompatActivity {
 ```
 - Replace `{{ your_company_code }}` with the unique company code associated with your Insert Affiliate account. You can find this code in your dashboard under [Settings](http://app.insertaffiliate.com/settings).
 
+### Advanced Initialization Options
+
+The SDK supports additional initialization parameters for enhanced functionality:
+
+```java
+// Full initialization with all options
+InsertAffiliateManager.init(
+    activity,                    // Your activity context
+    "{{ your_company_code }}",   // Your company code
+    true,                        // Enable verbose logging (optional)
+    true                         // Enable insert links (includes install referrer)
+);
+```
+
+**Parameters:**
+- `enableVerboseLogging`: When `true`, provides detailed logging for debugging and should be disabled in production
+- `enableInsertLinks`: When `true`, additional logging will occur to handle Insert Links
+
+**Default Behavior:**
+- Insert Links and Verbose Logging is disabled by default.
+
 
 ## In-App Purchase Setup [Required]
 Insert Affiliate requires a Receipt Verification platform to validate in-app purchases. You must choose **one** of our supported partners:
