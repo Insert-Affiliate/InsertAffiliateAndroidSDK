@@ -10,6 +10,9 @@ import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.installreferrer.api.InstallReferrerClient;
+import com.android.installreferrer.api.InstallReferrerStateListener;
+import com.android.installreferrer.api.ReferrerDetails;
 import com.google.gson.JsonObject;
 
 import org.json.JSONObject;
@@ -37,23 +40,32 @@ public class InsertAffiliateManager {
     private String message = null;
     private static String responseMessage = null;
     private static boolean verboseLogging = false;
+    private static boolean insertLinks = false;
 
     public InsertAffiliateManager(Context context) {
         this.context = context;
     }
 
-    // MARK: Company Code
+    // MARK: init with default
     public static void init(Activity activity, String code){
-        init(activity, code, false);
+        init(activity, code, false, false);
     }
     
-    public static void init(Activity activity, String code, boolean enableVerboseLogging){
+    public static void init(
+        Activity activity,
+        String code,
+        boolean enableVerboseLogging,
+        boolean enableInsertLinks // When set to true, the SDK will add trigger additional setup for deep links and universal links. If you are using an external provider for deep links, ensure this is set to false.
+
+    ){
         verboseLogging = enableVerboseLogging;
-        
+        insertLinks = enableInsertLinks;
+
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Starting SDK initialization...");
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Company code provided: " + (code != null && !code.isEmpty() ? "Yes" : "No"));
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Verbose logging enabled");
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Insert links enabled: " + insertLinks);
         }
         
         if (companyCode != null || code == null || code.isEmpty()) {
@@ -65,6 +77,11 @@ public class InsertAffiliateManager {
         
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] SDK initialization completed");
+        }
+        
+        // Automatically capture install referrer data if enabled
+        if (insertLinks) {
+            captureInstallReferrer(activity); // Deferred Deep Linking
         }
     }
 
@@ -373,6 +390,100 @@ public class InsertAffiliateManager {
         String identifier = referring_link + "-" + shortUniqueDeviceID;
         verboseLog("Found identifier: " + identifier);
         return identifier;
+    }
+
+    // MARK: Play Install Referrer
+    /**
+     * Captures install referrer data from Google Play Store
+     * This method automatically extracts referral parameters and processes them
+     * @param activity The activity context
+     */
+    private static void captureInstallReferrer(Activity activity) {
+        verboseLog("Starting install referrer capture...");
+        
+        InstallReferrerClient referrerClient = InstallReferrerClient.newBuilder(activity).build();
+        referrerClient.startConnection(new InstallReferrerStateListener() {
+            @Override
+            public void onInstallReferrerSetupFinished(int responseCode) {
+                switch (responseCode) {
+                    case InstallReferrerClient.InstallReferrerResponse.OK:
+                        verboseLog("Install referrer setup successful");
+                        try {
+                            ReferrerDetails details = referrerClient.getInstallReferrer();
+                            String rawReferrer = details.getInstallReferrer();
+                            
+                            verboseLog("Raw referrer data: " + rawReferrer);
+                            
+                            if (rawReferrer != null && !rawReferrer.isEmpty()) {
+                                processInstallReferrerData(activity, rawReferrer);
+                            } else {
+                                verboseLog("No referrer data found");
+                            }
+                        } catch (Exception e) {
+                            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error getting install referrer details: " + e.getMessage());
+                            verboseLog("Error getting referrer details: " + e.getMessage());
+                        }
+                        referrerClient.endConnection();
+                        break;
+                        
+                    case InstallReferrerClient.InstallReferrerResponse.FEATURE_NOT_SUPPORTED:
+                        verboseLog("Install referrer feature not supported on this device");
+                        break;
+                        
+                    case InstallReferrerClient.InstallReferrerResponse.SERVICE_UNAVAILABLE:
+                        verboseLog("Install referrer service unavailable");
+                        break;
+                        
+                    default:
+                        verboseLog("Install referrer setup failed with code: " + responseCode);
+                        break;
+                }
+            }
+
+            @Override
+            public void onInstallReferrerServiceDisconnected() {
+                verboseLog("Install referrer service disconnected");
+            }
+        });
+    }
+
+    /**
+     * Processes the raw install referrer data and extracts insertAffiliate parameter
+     * @param activity The activity context
+     * @param rawReferrer The raw referrer string from Play Store
+     */
+    private static void processInstallReferrerData(Activity activity, String rawReferrer) {
+        verboseLog("Processing install referrer data...");
+        
+        try {
+            // Parse the referrer string directly for insertAffiliate parameter
+            String insertAffiliate = null;
+            
+            // Look for insertAffiliate=value in the raw referrer string
+            if (rawReferrer.contains("insertAffiliate=")) {
+                String[] params = rawReferrer.split("&");
+                for (String param : params) {
+                    if (param.startsWith("insertAffiliate=")) {
+                        insertAffiliate = param.substring("insertAffiliate=".length());
+                        break;
+                    }
+                }
+            }
+            
+            verboseLog("Extracted insertAffiliate parameter: " + insertAffiliate);
+            
+            // If we have insertAffiliate parameter, use it as the affiliate identifier
+            if (insertAffiliate != null && !insertAffiliate.isEmpty()) {
+                verboseLog("Found insertAffiliate parameter, setting as affiliate identifier: " + insertAffiliate);
+                setInsertAffiliateIdentifier(activity, insertAffiliate);
+            } else {
+                verboseLog("No insertAffiliate parameter found in referrer data");
+            }
+            
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error processing install referrer data: " + e.getMessage());
+            verboseLog("Error processing referrer data: " + e.getMessage());
+        }
     }
 
     // MARK: Event Tracking
