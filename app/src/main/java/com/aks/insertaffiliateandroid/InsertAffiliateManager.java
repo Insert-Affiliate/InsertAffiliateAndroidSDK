@@ -141,7 +141,7 @@ public class InsertAffiliateManager {
         }
 
         // If all checks pass, set the Insert Affiliate Identifier
-        storeInsertAffiliateReferringLink(activity,capitalisedShortCode);
+        storeInsertAffiliateReferringLink(activity, capitalisedShortCode);
 
         // Return and log the Insert Affiliate Identifier
         String identifier = returnInsertAffiliateIdentifier(activity);
@@ -826,6 +826,35 @@ public class InsertAffiliateManager {
      */
     public interface OfferCodeCallback {
         void onOfferCodeReceived(String offerCode);
+    }
+
+    /**
+     * Handles deep links containing insertAffiliate parameter
+     * This method should be called from Activity.onCreate() and Activity.onNewIntent()
+     * @param activity The activity context
+     * @param intent The intent containing the deep link data
+     */
+    public static void handleInsertLink(Activity activity, Intent intent) {
+        if (intent == null || intent.getData() == null) {
+            verboseLog("No intent or URI data found in handleInsertLink");
+            return;
+        }
+        
+        Uri uri = intent.getData();
+        verboseLog("Processing deep link URI: " + uri.toString());
+        
+        // Look for insertAffiliate parameter in the URI
+        String insertAffiliate = uri.getQueryParameter("insertAffiliate");
+        
+        if (insertAffiliate != null && !insertAffiliate.isEmpty()) {
+            verboseLog("Found insertAffiliate parameter: " + insertAffiliate);
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Deep link detected with insertAffiliate parameter: " + insertAffiliate);
+            
+            // Set the affiliate identifier using the found parameter
+            setInsertAffiliateIdentifier(activity, insertAffiliate);
+        } else {
+            verboseLog("No insertAffiliate parameter found in deep link");
+        }
     }
 
     /**

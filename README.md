@@ -243,7 +243,9 @@ Insert Links by Insert Affiliate supports direct deep linking into your app. Thi
 Before you can use Insert Links, you must complete the setup steps in [our docs](https://docs.insertaffiliate.com/insert-links)
 
 
-#### Required Callback
+#### Callback and Insert Links Handling
+All three steps below are required for Insert Links to function correctly.
+
 ```java
 public class MainActivity extends AppCompatActivity {
     InsertAffiliateManager insertAffiliateManager;
@@ -251,9 +253,12 @@ public class MainActivity extends AppCompatActivity {
     
     @Override
     protected void onCreate() {
-        super.onStart();
-        
-        // Set up callback to be notified when affiliate identifier changes
+        super.onCreate(savedInstanceState);
+
+        // Initialize the SDK
+        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true, true);
+
+        // 1. Set up callback to be notified when affiliate identifier changes
         InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
             @Override
             public void onIdentifierChanged(String identifier) {
@@ -265,8 +270,19 @@ public class MainActivity extends AppCompatActivity {
                 // *** End of RevenueCat section *** //
             }
         });
+
+        // 2. Handle deep link from onCreate
+        InsertAffiliateManager.handleInsertLink(this, getIntent());
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        
+        // 3. Handle deep link from onNewIntent
+        InsertAffiliateManager.handleInsertLink(this, intent);
+    }
 }
 ```
 
