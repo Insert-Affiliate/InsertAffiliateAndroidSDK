@@ -247,6 +247,8 @@ Before you can use Insert Links, you must complete the setup steps in [our docs]
 All three steps below are required for Insert Links to function correctly.
 
 ```java
+import android.content.Intent;
+
 public class MainActivity extends AppCompatActivity {
     InsertAffiliateManager insertAffiliateManager;
     private ActivityMainBinding binding;
