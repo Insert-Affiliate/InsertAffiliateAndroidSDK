@@ -841,7 +841,7 @@ public class InsertAffiliateManager {
         }
         
         Uri uri = intent.getData();
-        verboseLog("Processing deep link URI: " + uri.toString());
+        verboseLog("InsertAffiliate: Processing Insert Link URI: " + uri.toString());
         
         // Look for insertAffiliate parameter in the URI
         String insertAffiliate = uri.getQueryParameter("insertAffiliate");
