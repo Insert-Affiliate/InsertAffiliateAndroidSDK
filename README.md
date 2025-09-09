@@ -240,10 +240,15 @@ Insert Links by Insert Affiliate supports direct deep linking into your app. Thi
 
 #### Initial Setup
 
-Before you can use Insert Links, you must complete the setup steps in [our docs](https://docs.insertaffiliate.com/insert-links)
+1. Before you can use Insert Links, you must complete the setup steps in [our docs](https://docs.insertaffiliate.com/insert-links)
 
 
-#### Callback and Insert Links Handling
+You must enable *insertLinksEnabled* when [initialising our SDK](https://github.com/Insert-Affiliate/InsertAffiliateAndroidSDK/tree/feature/deeplink?tab=readme-ov-file#advanced-initialization-options)
+
+2. **Handle Insert Links** in your AppDelegate
+
+
+3. **Callback and Insert Links Handling**
 All three steps below are required for Insert Links to function correctly.
 
 ```java
