@@ -68,6 +68,27 @@ public class MainActivity extends AppCompatActivity {
 ```
 - Replace `{{ your_company_code }}` with the unique company code associated with your Insert Affiliate account. You can find this code in your dashboard under [Settings](http://app.insertaffiliate.com/settings).
 
+### Advanced Initialization Options
+
+The SDK supports additional initialization parameters for enhanced functionality:
+
+```java
+// Full initialization with all options
+InsertAffiliateManager.init(
+    activity,                    // Your activity context
+    "{{ your_company_code }}",   // Your company code
+    true,                        // Enable verbose logging (optional)
+    true                         // Enable insert links (includes install referrer)
+);
+```
+
+**Parameters:**
+- `enableVerboseLogging`: When `true`, provides detailed logging for debugging and should be disabled in production
+- `enableInsertLinks`: When `true`, additional logging will occur to handle Insert Links
+
+**Default Behavior:**
+- Insert Links and Verbose Logging is disabled by default.
+
 
 ## In-App Purchase Setup [Required]
 Insert Affiliate requires a Receipt Verification platform to validate in-app purchases. You must choose **one** of our supported partners:
@@ -211,6 +232,61 @@ Insert Affiliate requires a Deep Linking platform to create links for your affil
 ```java
 insertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, "" + 
 {{ referring_link }};
+```
+
+### Deep Linking with Insert Links
+
+Insert Links by Insert Affiliate supports direct deep linking into your app. This allows you to track affiliate attribution when end users are referred to your app by clicking on one of your affiliates Insert Links.
+
+#### Initial Setup
+
+1. Before you can use Insert Links, you must complete the setup steps in [our docs](https://docs.insertaffiliate.com/insert-links)
+
+You must enable *insertLinksEnabled* when [initialising our SDK](https://github.com/Insert-Affiliate/InsertAffiliateAndroidSDK/tree/feature/deeplink?tab=readme-ov-file#advanced-initialization-options)
+
+2. **Callback and Insert Links Handling**
+All steps below are required for Insert Links to function correctly.
+
+```java
+import android.content.Intent;
+
+public class MainActivity extends AppCompatActivity {
+    InsertAffiliateManager insertAffiliateManager;
+    private ActivityMainBinding binding;
+    
+    @Override
+    protected void onCreate() {
+        super.onCreate(savedInstanceState);
+
+        // Initialize the SDK
+        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true, true);
+
+        // 1. Set up callback to be notified when affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+            @Override
+            public void onIdentifierChanged(String identifier) {
+                // Log the new identifier to console
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate identifier changed to: " + identifier);
+
+                // *** Required if using RevenueCat *** //
+                Purchases.sharedInstance.setAttributes(mapOf("insert_affiliate" to insertAffiliateIdentifier));
+                // *** End of RevenueCat section *** //
+            }
+        });
+
+        // 2. Handle deep link from onCreate
+        InsertAffiliateManager.handleInsertLink(this, getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        
+        // 3. Handle deep link from onNewIntent
+        InsertAffiliateManager.handleInsertLink(this, intent);
+    }
+}
 ```
 
 ### Deep Linking with Branch.io
