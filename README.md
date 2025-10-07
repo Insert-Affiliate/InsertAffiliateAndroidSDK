@@ -80,14 +80,34 @@ InsertAffiliateManager.init(
     true,                        // Enable verbose logging (optional)
     true                         // Enable insert links (includes install referrer)
 );
+
+// Initialize with affiliate attribution timeout (optional)
+InsertAffiliateManager.init(
+    activity,                    // Your activity context
+    "{{ your_company_code }}",   // Your company code
+    false,                       // Enable verbose logging
+    false,                       // Enable insert links
+    604800                       // OPTIONAL: Affiliate attribution timeout in seconds (7 days)
+);
+
+// Full initialization with timeout (optional)
+InsertAffiliateManager.init(
+    activity,                    // Your activity context
+    "{{ your_company_code }}",   // Your company code
+    true,                        // Enable verbose logging (optional)
+    true,                        // Enable insert links (includes install referrer)
+    604800                       // OPTIONAL: Affiliate attribution timeout in seconds (7 days)
+);
 ```
 
 **Parameters:**
 - `enableVerboseLogging`: When `true`, provides detailed logging for debugging and should be disabled in production
 - `enableInsertLinks`: When `true`, additional logging will occur to handle Insert Links
+- `affiliateAttributionActiveTimeSeconds`: **OPTIONAL** - Time in seconds for affiliate attribution to remain active (0 = no timeout)
 
 **Default Behavior:**
-- Insert Links and Verbose Logging is disabled by default.
+- Insert Links and Verbose Logging is disabled by default
+- Affiliate attribution timeout is disabled by default (no expiration)
 
 
 ## In-App Purchase Setup [Required]
@@ -669,7 +689,57 @@ Log.d("InsertAffiliate", "Current affiliate ID: " + affiliateId);
 
 ## Additional Features
 
-### 1: Event Tracking (Beta)
+### 1: Affiliate Attribution Timeout Control (Optional)
+
+Control how long affiliate attribution remains active after a user clicks an affiliate link. This feature allows you to set expiration periods for affiliate tracking.
+
+#### Configuration
+
+Set the timeout during SDK initialization:
+
+```java
+// Set 7-day attribution timeout (604800 seconds) - OPTIONAL
+InsertAffiliateManager.init(activity, "{{ your_company_code }}", false, false, 604800);
+```
+
+#### Available Methods
+
+**Get affiliate identifier with timeout control:**
+```java
+// Get identifier respecting timeout (returns null if expired)
+String identifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(activity);
+
+// Get identifier ignoring timeout
+String identifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(activity, true);
+```
+
+**Check if attribution is valid:**
+```java
+boolean isValid = InsertAffiliateManager.isAffiliateAttributionValid(activity);
+if (isValid) {
+    // Attribution is still active
+} else {
+    // Attribution has expired or no timeout is configured
+}
+```
+
+**Get when affiliate was stored:**
+```java
+long storedDate = InsertAffiliateManager.getAffiliateStoredDate(activity);
+if (storedDate > 0) {
+    // Date as seconds since epoch
+    Date date = new Date(storedDate * 1000);
+}
+```
+
+#### Timeout Behavior
+
+- When timeout is set to `0` (default): Attribution never expires
+- When timeout is set to a positive value: Attribution expires after that many seconds
+- Expired attributions return `null` when calling `returnInsertAffiliateIdentifier(activity)`
+- Use `returnInsertAffiliateIdentifier(activity, true)` to ignore timeout and get identifier anyway
+
+### 2: Event Tracking (Beta)
 
 The **InsertAffiliateAndroid SDK** now includes a beta feature for event tracking. Use event tracking to log key user actions such as signups, purchases, or referrals. This is useful for:
 - Understanding user behaviour.

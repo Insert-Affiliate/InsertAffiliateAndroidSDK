@@ -43,6 +43,7 @@ public class InsertAffiliateManager {
     private static String responseMessage = null;
     private static boolean verboseLogging = false;
     private static boolean insertLinks = false;
+    private static long affiliateAttributionActiveTime = 0; // Time in seconds for affiliate attribution to remain active (0 = no timeout)
     
     // Thread-safe callback mechanism
     private static final ExecutorService callbackExecutor = Executors.newSingleThreadExecutor();
@@ -57,6 +58,11 @@ public class InsertAffiliateManager {
         init(activity, code, false, false);
     }
     
+    // MARK: init with timeout
+    public static void init(Activity activity, String code, long affiliateAttributionActiveTimeSeconds){
+        init(activity, code, false, false, affiliateAttributionActiveTimeSeconds);
+    }
+    
     public static void init(
         Activity activity,
         String code,
@@ -64,14 +70,26 @@ public class InsertAffiliateManager {
         boolean enableInsertLinks // When set to true, the SDK will add trigger additional setup for deep links and universal links. If you are using an external provider for deep links, ensure this is set to false.
 
     ){
+        init(activity, code, enableVerboseLogging, enableInsertLinks, 0);
+    }
+    
+    public static void init(
+        Activity activity,
+        String code,
+        boolean enableVerboseLogging,
+        boolean enableInsertLinks, // When set to true, the SDK will add trigger additional setup for deep links and universal links. If you are using an external provider for deep links, ensure this is set to false.
+        long affiliateAttributionActiveTimeSeconds // Time in seconds for affiliate attribution to remain active (0 = no timeout)
+    ){
         verboseLogging = enableVerboseLogging;
         insertLinks = enableInsertLinks;
+        affiliateAttributionActiveTime = affiliateAttributionActiveTimeSeconds;
 
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Starting SDK initialization...");
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Company code provided: " + (code != null && !code.isEmpty() ? "Yes" : "No"));
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Verbose logging enabled");
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Insert links enabled: " + insertLinks);
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Affiliate attribution timeout: " + (affiliateAttributionActiveTime > 0 ? affiliateAttributionActiveTime + " seconds" : "disabled"));
         }
         
         if (companyCode != null || code == null || code.isEmpty()) {
@@ -383,7 +401,14 @@ public class InsertAffiliateManager {
         SharedPreferences.Editor editor = sharedPreferences
                 .edit();
         editor.putString("referring_link", referringLink);
+        
+        // Store the current timestamp when affiliate identifier is set
+        long currentTimeSeconds = System.currentTimeMillis() / 1000;
+        editor.putLong("affiliate_stored_date", currentTimeSeconds);
+        
         editor.commit();
+        
+        verboseLog("Stored affiliate identifier with timestamp: " + currentTimeSeconds);
         
         // Notify callback of identifier change
         notifyIdentifierChange(activity);
@@ -393,7 +418,11 @@ public class InsertAffiliateManager {
     }
 
     public static String returnInsertAffiliateIdentifier(Activity activity) {
-        verboseLog("Getting insert affiliate identifier...");
+        return returnInsertAffiliateIdentifier(activity, false);
+    }
+    
+    public static String returnInsertAffiliateIdentifier(Activity activity, boolean ignoreTimeout) {
+        verboseLog("Getting insert affiliate identifier (ignoreTimeout: " + ignoreTimeout + ")...");
         SharedPreferences sharedPreferences
                 = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
         );
@@ -406,6 +435,15 @@ public class InsertAffiliateManager {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] No affiliate identifier found. Please set one before tracking events.");
             verboseLog("No affiliate identifier found in storage");
             return null;
+        }
+        
+        // Check timeout only if not ignoring timeout and timeout is configured
+        if (!ignoreTimeout && affiliateAttributionActiveTime > 0) {
+            if (!isAffiliateAttributionValid(activity)) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate attribution has expired");
+                verboseLog("Affiliate attribution expired, returning null");
+                return null;
+            }
         }
         
         String identifier = referring_link + "-" + shortUniqueDeviceID;
@@ -800,6 +838,47 @@ public class InsertAffiliateManager {
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] " + message);
         }
+    }
+
+    /**
+     * Checks if the current affiliate attribution is still valid based on timeout settings
+     * @param activity The activity context
+     * @return true if attribution is valid, false if expired or no timeout configured
+     */
+    public static boolean isAffiliateAttributionValid(Activity activity) {
+        // If no timeout is configured, attribution is always valid
+        if (affiliateAttributionActiveTime <= 0) {
+            verboseLog("No timeout configured, attribution is valid");
+            return true;
+        }
+        
+        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+        long storedDate = sharedPreferences.getLong("affiliate_stored_date", 0);
+        
+        if (storedDate == 0) {
+            verboseLog("No stored date found, attribution is invalid");
+            return false;
+        }
+        
+        long currentTimeSeconds = System.currentTimeMillis() / 1000;
+        long timeDifference = currentTimeSeconds - storedDate;
+        
+        boolean isValid = timeDifference <= affiliateAttributionActiveTime;
+        verboseLog("Attribution validity check - stored: " + storedDate + ", current: " + currentTimeSeconds + ", difference: " + timeDifference + "s, timeout: " + affiliateAttributionActiveTime + "s, valid: " + isValid);
+        
+        return isValid;
+    }
+    
+    /**
+     * Gets the date when the affiliate identifier was stored
+     * @param activity The activity context
+     * @return The timestamp in seconds since epoch when affiliate was stored, or 0 if not found
+     */
+    public static long getAffiliateStoredDate(Activity activity) {
+        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+        long storedDate = sharedPreferences.getLong("affiliate_stored_date", 0);
+        verboseLog("Getting affiliate stored date: " + storedDate);
+        return storedDate;
     }
 
     /**
