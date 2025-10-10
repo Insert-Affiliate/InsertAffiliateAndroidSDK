@@ -1,0 +1,136 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.aks.insertaffiliateandroid",
+    "module": "InsertAffiliateAndroidSDK",
+    "version": "1.1.5",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.7"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "InsertAffiliateAndroidSDK-1.1.5.aar",
+          "url": "InsertAffiliateAndroidSDK-1.1.5.aar",
+          "size": 58352,
+          "sha512": "68a11eff67be9a9eff85a9ca200390246f84c87dfe2b546a08f77a72aa80adbd110b938329c34cbcd4f90fcf711c4acdc48995a8c16d4da0a4764a81b076bfc1",
+          "sha256": "250d3f54f281da87171d04046dc13e5cbad9f6395de6e3f68a93b206a60d8622",
+          "sha1": "3c069d3d028a5445976bb9412a35b3a7bed4a846",
+          "md5": "040acbd6cd1ae3050313aa6b8289d60b"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "com.google.android.material",
+          "module": "material",
+          "version": {
+            "requires": "1.10.0"
+          }
+        },
+        {
+          "group": "com.google.code.gson",
+          "module": "gson",
+          "version": {
+            "requires": "2.10.1"
+          }
+        },
+        {
+          "group": "com.squareup.retrofit2",
+          "module": "retrofit",
+          "version": {
+            "requires": "2.9.0"
+          }
+        },
+        {
+          "group": "com.squareup.retrofit2",
+          "module": "converter-gson",
+          "version": {
+            "requires": "2.9.0"
+          }
+        },
+        {
+          "group": "com.squareup.okhttp3",
+          "module": "okhttp",
+          "version": {
+            "requires": "4.9.2"
+          }
+        },
+        {
+          "group": "com.squareup.retrofit2",
+          "module": "converter-scalars",
+          "version": {
+            "requires": "2.9.0"
+          }
+        },
+        {
+          "group": "com.android.installreferrer",
+          "module": "installreferrer",
+          "version": {
+            "requires": "2.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "InsertAffiliateAndroidSDK-1.1.5.aar",
+          "url": "InsertAffiliateAndroidSDK-1.1.5.aar",
+          "size": 58352,
+          "sha512": "68a11eff67be9a9eff85a9ca200390246f84c87dfe2b546a08f77a72aa80adbd110b938329c34cbcd4f90fcf711c4acdc48995a8c16d4da0a4764a81b076bfc1",
+          "sha256": "250d3f54f281da87171d04046dc13e5cbad9f6395de6e3f68a93b206a60d8622",
+          "sha1": "3c069d3d028a5445976bb9412a35b3a7bed4a846",
+          "md5": "040acbd6cd1ae3050313aa6b8289d60b"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "InsertAffiliateAndroidSDK-1.1.5-sources.jar",
+          "url": "InsertAffiliateAndroidSDK-1.1.5-sources.jar",
+          "size": 8826,
+          "sha512": "c2eba469907e95cd9a93e00acfd312f7a6b8d86f300678d800168714620dcdb6dca29d0fd18f9336dded6a35d0b76afe158f57ed3dd85e07480b97165cba3880",
+          "sha256": "10e3d81e4d0276b957fc31de3d3d435027b83d9a3c0f66ea8e4e49d22c84d58a",
+          "sha1": "76209b927f1c961f54c65aca2a4512b0dcfeef9f",
+          "md5": "9fa88127a70da7c5168087834485f74a"
+        }
+      ]
+    }
+  ]
+}
