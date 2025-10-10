@@ -63,6 +63,11 @@ public class InsertAffiliateManager {
         init(activity, code, false, false, affiliateAttributionActiveTimeSeconds);
     }
     
+    // MARK: init with logging and timeout
+    public static void init(Activity activity, String code, boolean enableVerboseLogging, long affiliateAttributionActiveTimeSeconds){
+        init(activity, code, enableVerboseLogging, false, affiliateAttributionActiveTimeSeconds);
+    }
+    
     public static void init(
         Activity activity,
         String code,

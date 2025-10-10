@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
 The SDK supports additional initialization parameters for enhanced functionality:
 
 ```java
-// Full initialization with all options
+// Basic initialization with optional parameters
 InsertAffiliateManager.init(
     activity,                    // Your activity context
     "{{ your_company_code }}",   // Your company code
@@ -81,16 +81,22 @@ InsertAffiliateManager.init(
     true                         // Enable insert links (includes install referrer)
 );
 
-// Initialize with affiliate attribution timeout (optional)
+// With timeout only
 InsertAffiliateManager.init(
     activity,                    // Your activity context
     "{{ your_company_code }}",   // Your company code
-    false,                       // Enable verbose logging
-    false,                       // Enable insert links
-    604800                       // OPTIONAL: Affiliate attribution timeout in seconds (7 days)
+    604800                       // Affiliate attribution timeout in seconds (7 days)
 );
 
-// Full initialization with timeout (optional)
+// With verbose logging and timeout (common for development)
+InsertAffiliateManager.init(
+    activity,                    // Your activity context
+    "{{ your_company_code }}",   // Your company code
+    true,                        // Enable verbose logging
+    604800                       // Affiliate attribution timeout in seconds (7 days)
+);
+
+// Full initialization with all options
 InsertAffiliateManager.init(
     activity,                    // Your activity context
     "{{ your_company_code }}",   // Your company code
