@@ -695,57 +695,7 @@ Log.d("InsertAffiliate", "Current affiliate ID: " + affiliateId);
 
 ## Additional Features
 
-### 1: Affiliate Attribution Timeout Control (Optional)
-
-Control how long affiliate attribution remains active after a user clicks an affiliate link. This feature allows you to set expiration periods for affiliate tracking.
-
-#### Configuration
-
-Set the timeout during SDK initialization:
-
-```java
-// Set 7-day attribution timeout (604800 seconds) - OPTIONAL
-InsertAffiliateManager.init(activity, "{{ your_company_code }}", false, false, 604800);
-```
-
-#### Available Methods
-
-**Get affiliate identifier with timeout control:**
-```java
-// Get identifier respecting timeout (returns null if expired)
-String identifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(activity);
-
-// Get identifier ignoring timeout
-String identifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(activity, true);
-```
-
-**Check if attribution is valid:**
-```java
-boolean isValid = InsertAffiliateManager.isAffiliateAttributionValid(activity);
-if (isValid) {
-    // Attribution is still active
-} else {
-    // Attribution has expired or no timeout is configured
-}
-```
-
-**Get when affiliate was stored:**
-```java
-long storedDate = InsertAffiliateManager.getAffiliateStoredDate(activity);
-if (storedDate > 0) {
-    // Date as seconds since epoch
-    Date date = new Date(storedDate * 1000);
-}
-```
-
-#### Timeout Behavior
-
-- When timeout is set to `0` (default): Attribution never expires
-- When timeout is set to a positive value: Attribution expires after that many seconds
-- Expired attributions return `null` when calling `returnInsertAffiliateIdentifier(activity)`
-- Use `returnInsertAffiliateIdentifier(activity, true)` to ignore timeout and get identifier anyway
-
-### 2: Event Tracking (Beta)
+### 1: Event Tracking (Beta)
 
 The **InsertAffiliateAndroid SDK** now includes a beta feature for event tracking. Use event tracking to log key user actions such as signups, purchases, or referrals. This is useful for:
 - Understanding user behaviour.
@@ -761,9 +711,9 @@ InsertAffiliateManager.trackEvent(activity, "your_event_name");
 ```
 
 
-### 2. Short Codes (Beta)
+### 2: Short Codes (Beta)
 
-### What are Short Codes?
+#### What are Short Codes?
 
 Short codes are unique, 3 to 25 character alphanumeric identifiers that affiliates can use to promote products or subscriptions. These codes are ideal for influencers or partners, making them easier to share than long URLs.
 
@@ -772,7 +722,7 @@ Short codes are unique, 3 to 25 character alphanumeric identifiers that affiliat
 For more information, visit the [Insert Affiliate Short Codes Documentation](https://docs.insertaffiliate.com/short-codes).
 
 
-### Setting a Short Code
+#### Setting a Short Code
 
 Use the `setShortCode` method to associate a short code with an affiliate. This is ideal for scenarios where users enter the code via an input field, pop-up, or similar UI element.
 
@@ -783,14 +733,14 @@ Short codes must meet the following criteria:
 
 
 
-#### Example Usage
+##### Example Usage
 Set the Affiliate Identifier (required for tracking):
 
 ```java
 InsertAffiliateManager.setShortCode(activity, "JOIN123456");
 ```
 
-### 2. Discounts for Users → Offer Codes / Dynamic Product IDs
+### 3: Discounts for Users → Offer Codes / Dynamic Product IDs
 
 The SDK allows you to apply dynamic modifiers to in-app purchases based on whether the app was installed via an affiliate. These modifiers can be used to swap the default product ID for a discounted or trial-based one - similar to applying an offer code.
 
@@ -1137,3 +1087,75 @@ public class RevenueCatSubscriptionManager {
         );
     }
 }
+
+## Attribution Timeout Control (New)
+
+Control how long affiliate attribution remains active after a user clicks an affiliate link. This feature allows you to set expiration periods for affiliate tracking.
+
+### Configuration
+
+Set the timeout during SDK initialization:
+
+```java
+// Set 7-day attribution timeout (604800 seconds)
+InsertAffiliateManager.init(
+    activity,                    // Your activity context
+    "{{ your_company_code }}",   // Your company code
+    false,                       // Enable verbose logging (optional)
+    false,                       // Enable insert links (optional)
+    604800                       // Affiliate attribution timeout in seconds (7 days)
+);
+```
+
+### Available Methods
+
+**Get affiliate identifier with timeout control:**
+```java
+// Get identifier respecting timeout (returns null if expired)
+String identifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(activity);
+
+// Get identifier ignoring timeout
+String identifier = InsertAffiliateManager.returnInsertAffiliateIdentifier(activity, true);
+```
+
+**Check if attribution is valid:**
+```java
+boolean isValid = InsertAffiliateManager.isAffiliateAttributionValid(activity);
+if (isValid) {
+    // Attribution is still active
+} else {
+    // Attribution has expired or no timeout is configured
+}
+```
+
+**Get when affiliate was stored:**
+```java
+long storedDate = InsertAffiliateManager.getAffiliateStoredDate(activity);
+if (storedDate > 0) {
+    // Date as seconds since epoch
+    Date date = new Date(storedDate * 1000);
+}
+```
+
+### Default Behavior
+
+- **No timeout by default**: Attribution never expires when timeout is set to `0` (default)
+- **Custom timeout**: When set to a positive value, attribution expires after that many seconds
+- **Expired attributions**: Return `null` when calling `returnInsertAffiliateIdentifier(activity)`
+- **Override timeout**: Use `returnInsertAffiliateIdentifier(activity, true)` to ignore timeout and get identifier anyway
+
+### Common Timeout Values
+
+```java
+// 1 day
+InsertAffiliateManager.init(activity, "company_code", 86400);
+
+// 7 days (recommended)
+InsertAffiliateManager.init(activity, "company_code", 604800);
+
+// 30 days
+InsertAffiliateManager.init(activity, "company_code", 2592000);
+
+// No timeout (default)
+InsertAffiliateManager.init(activity, "company_code", 0);
+```
