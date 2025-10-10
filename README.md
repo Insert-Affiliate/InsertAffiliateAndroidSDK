@@ -1087,6 +1087,7 @@ public class RevenueCatSubscriptionManager {
         );
     }
 }
+```
 
 ## Attribution Timeout Control (New)
 
