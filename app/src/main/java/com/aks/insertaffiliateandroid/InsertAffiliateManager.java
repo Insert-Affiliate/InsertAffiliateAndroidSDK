@@ -398,17 +398,24 @@ public class InsertAffiliateManager {
                 = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
         );
 
+        // Check if this is a new or different affiliate identifier
+        String existingLink = sharedPreferences.getString("referring_link", null);
+        boolean isNewOrDifferent = existingLink == null || !existingLink.equals(referringLink);
+
         SharedPreferences.Editor editor = sharedPreferences
                 .edit();
         editor.putString("referring_link", referringLink);
         
-        // Store the current timestamp when affiliate identifier is set
-        long currentTimeSeconds = System.currentTimeMillis() / 1000;
-        editor.putLong("affiliate_stored_date", currentTimeSeconds);
+        // Only store the attribution date if this is a new or different affiliate identifier
+        if (isNewOrDifferent) {
+            long currentTimeSeconds = System.currentTimeMillis() / 1000;
+            editor.putLong("affiliate_stored_date", currentTimeSeconds);
+            verboseLog("New affiliate identifier stored with fresh attribution date: " + currentTimeSeconds);
+        } else {
+            verboseLog("Same affiliate identifier, preserving existing attribution date");
+        }
         
         editor.commit();
-        
-        verboseLog("Stored affiliate identifier with timestamp: " + currentTimeSeconds);
         
         // Notify callback of identifier change
         notifyIdentifierChange(activity);
