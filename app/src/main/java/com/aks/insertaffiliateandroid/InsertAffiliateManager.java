@@ -142,37 +142,52 @@ public class InsertAffiliateManager {
         return link != null && link.matches(regex);
     }
 
-    public static void setShortCode(Activity activity, String shortCode) {
+    /**
+     * Validates a short code against the API and stores it if valid
+     * @param activity The activity context
+     * @param shortCode The short code to validate and set
+     * @param callback Callback that receives validation result (true if valid, false if invalid)
+     */
+    public static void setShortCode(Activity activity, String shortCode, ShortCodeValidationCallback callback) {
         if (shortCode == null || shortCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code cannot be null or empty.");
+            if (callback != null) callback.onValidationComplete(false);
             return;
         }
 
         // Convert short code to uppercase
         String capitalisedShortCode = shortCode.toUpperCase();
 
-        // Ensure the short code is exactly 10 characters
-        if (capitalisedShortCode.length() != 10) {
-            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code must be exactly 10 characters long.");
+        // Ensure the short code is between 3 and 25 characters
+        if (capitalisedShortCode.length() < 3 || capitalisedShortCode.length() > 25) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code must be between 3 and 25 characters long.");
+            if (callback != null) callback.onValidationComplete(false);
             return;
         }
 
         // Ensure the short code contains only letters and numbers
         if (!capitalisedShortCode.matches("^[a-zA-Z0-9]+$")) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code must contain only letters and numbers.");
+            if (callback != null) callback.onValidationComplete(false);
             return;
         }
 
-        // If all checks pass, set the Insert Affiliate Identifier
-        storeInsertAffiliateReferringLink(activity, capitalisedShortCode);
-
-        // Return and log the Insert Affiliate Identifier
-        String identifier = returnInsertAffiliateIdentifier(activity);
-        if (identifier != null) {
-            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Successfully set affiliate identifier: " + identifier);
-        } else {
-            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to set affiliate identifier.");
-        }
+        // Validate against API
+        getAffiliateDetails(capitalisedShortCode, new AffiliateDetailsCallback() {
+            @Override
+            public void onAffiliateDetailsReceived(AffiliateDetails details) {
+                if (details != null) {
+                    // Valid short code, store it
+                    storeInsertAffiliateReferringLink(activity, capitalisedShortCode);
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Short code " + capitalisedShortCode + " validated and stored successfully.");
+                    if (callback != null) callback.onValidationComplete(true);
+                } else {
+                    // Invalid short code
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code " + capitalisedShortCode + " does not exist. Not storing.");
+                    if (callback != null) callback.onValidationComplete(false);
+                }
+            }
+        });
     }
 
     // MARK: Device UUID
@@ -953,5 +968,154 @@ public class InsertAffiliateManager {
      */
     public interface InsertAffiliateIdentifierChangeCallback {
         void onIdentifierChanged(String identifier);
+    }
+
+    /**
+     * Callback interface for short code validation
+     */
+    public interface ShortCodeValidationCallback {
+        void onValidationComplete(boolean isValid);
+    }
+
+    /**
+     * Callback interface for affiliate details fetching operations
+     */
+    public interface AffiliateDetailsCallback {
+        void onAffiliateDetailsReceived(AffiliateDetails details);
+    }
+
+    /**
+     * Data class for affiliate details
+     */
+    public static class AffiliateDetails {
+        private String affiliateName;
+        private String affiliateShortCode;
+        private String deeplinkUrl;
+
+        public AffiliateDetails(String affiliateName, String affiliateShortCode, String deeplinkUrl) {
+            this.affiliateName = affiliateName;
+            this.affiliateShortCode = affiliateShortCode;
+            this.deeplinkUrl = deeplinkUrl;
+        }
+
+        public String getAffiliateName() {
+            return affiliateName;
+        }
+
+        public String getAffiliateShortCode() {
+            return affiliateShortCode;
+        }
+
+        public String getDeeplinkUrl() {
+            return deeplinkUrl;
+        }
+    }
+
+    /**
+     * Fetches affiliate details for a given short code without setting it
+     * @param shortCode The short code to fetch details for
+     * @param callback Callback that receives the affiliate details (null if not found or error)
+     */
+    public static void getAffiliateDetails(String shortCode, AffiliateDetailsCallback callback) {
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot get affiliate details: no company code available");
+            callback.onAffiliateDetailsReceived(null);
+            return;
+        }
+
+        if (shortCode == null || shortCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code cannot be null or empty");
+            callback.onAffiliateDetailsReceived(null);
+            return;
+        }
+
+        // Convert short code to uppercase
+        String capitalisedShortCode = shortCode.toUpperCase();
+
+        // Validate short code format
+        if (capitalisedShortCode.length() < 3 || capitalisedShortCode.length() > 25) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code must be between 3 and 25 characters long");
+            callback.onAffiliateDetailsReceived(null);
+            return;
+        }
+
+        if (!capitalisedShortCode.matches("^[a-zA-Z0-9]+$")) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code must contain only letters and numbers");
+            callback.onAffiliateDetailsReceived(null);
+            return;
+        }
+
+        String apiUrl = "https://api.insertaffiliate.com/V1/checkAffiliateExists";
+
+        // Build JSON payload
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("companyId", companyCode);
+            payload.put("affiliateCode", capitalisedShortCode);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to build JSON payload: " + e.getMessage());
+            callback.onAffiliateDetailsReceived(null);
+            return;
+        }
+
+        verboseLog("Getting affiliate details for: " + capitalisedShortCode);
+
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(apiUrl);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
+
+                // Write JSON payload
+                byte[] outputBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                connection.getOutputStream().write(outputBytes);
+
+                int responseCode = connection.getResponseCode();
+                verboseLog("Affiliate details response status: " + responseCode);
+
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String inputLine;
+
+                    while ((inputLine = in.readLine()) != null) {
+                        response.append(inputLine);
+                    }
+                    in.close();
+
+                    JSONObject jsonResponse = new JSONObject(response.toString());
+                    verboseLog("Affiliate details response: " + jsonResponse.toString());
+
+                    // Check if affiliate exists
+                    boolean exists = jsonResponse.optBoolean("exists", false);
+                    if (exists && jsonResponse.has("affiliate")) {
+                        JSONObject affiliate = jsonResponse.getJSONObject("affiliate");
+                        String affiliateName = affiliate.optString("affiliateName", "");
+                        String affiliateShortCode = affiliate.optString("affiliateShortCode", capitalisedShortCode);
+                        String deeplinkUrl = affiliate.optString("deeplinkurl", "");
+
+                        AffiliateDetails details = new AffiliateDetails(affiliateName, affiliateShortCode, deeplinkUrl);
+                        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Successfully fetched affiliate details for: " + affiliateName);
+                        callback.onAffiliateDetailsReceived(details);
+                    } else {
+                        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate not found for short code: " + capitalisedShortCode);
+                        callback.onAffiliateDetailsReceived(null);
+                    }
+                } else {
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching affiliate details: HTTP " + responseCode);
+                    callback.onAffiliateDetailsReceived(null);
+                }
+            } catch (Exception e) {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching affiliate details: " + e.getMessage());
+                callback.onAffiliateDetailsReceived(null);
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }).start();
     }
 }

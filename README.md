@@ -724,20 +724,56 @@ For more information, visit the [Insert Affiliate Short Codes Documentation](htt
 
 #### Setting a Short Code
 
-Use the `setShortCode` method to associate a short code with an affiliate. This is ideal for scenarios where users enter the code via an input field, pop-up, or similar UI element.
+Use the `setShortCode` method to associate a short code with an affiliate. This method now validates the short code against the API before storing it, providing feedback on whether the code is valid.
 
 Short codes must meet the following criteria:
 - Between **3 and 25 characters long**.
 - Contain only **letters and numbers** (alphanumeric characters).
-- Replace {{ user_entered_short_code }} with the short code the user enters through your chosen input method, i.e. an input field / pop up element
-
-
 
 ##### Example Usage
-Set the Affiliate Identifier (required for tracking):
+Set and validate a short code with user feedback:
 
 ```java
-InsertAffiliateManager.setShortCode(activity, "JOIN123456");
+InsertAffiliateManager.setShortCode(activity, "JOIN123456", new InsertAffiliateManager.ShortCodeValidationCallback() {
+    @Override
+    public void onValidationComplete(boolean isValid) {
+        if (isValid) {
+            Log.i("MyApp", "Short code is valid and has been stored!");
+            // Show success message to user
+        } else {
+            Log.e("MyApp", "Short code is invalid or does not exist");
+            // Show error message to user
+        }
+    }
+});
+```
+
+#### Getting Affiliate Details
+
+The `getAffiliateDetails` method allows you to retrieve information about an affiliate without setting it. This is useful for displaying affiliate information to users before they commit to using a code.
+
+##### Example Usage
+
+```java
+InsertAffiliateManager.getAffiliateDetails("JOIN123456", new InsertAffiliateManager.AffiliateDetailsCallback() {
+    @Override
+    public void onAffiliateDetailsReceived(InsertAffiliateManager.AffiliateDetails details) {
+        if (details != null) {
+            String name = details.getAffiliateName();
+            String shortCode = details.getAffiliateShortCode();
+            String deeplinkUrl = details.getDeeplinkUrl();
+
+            Log.i("MyApp", "Affiliate Name: " + name);
+            Log.i("MyApp", "Short Code: " + shortCode);
+            Log.i("MyApp", "Deeplink URL: " + deeplinkUrl);
+
+            // Display affiliate information to user
+        } else {
+            Log.e("MyApp", "Affiliate not found");
+            // Show error message to user
+        }
+    }
+});
 ```
 
 ### 3: Discounts for Users → Offer Codes / Dynamic Product IDs
