@@ -3,7 +3,7 @@
   "component": {
     "group": "com.aks.insertaffiliateandroid",
     "module": "InsertAffiliateAndroidSDK",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "attributes": {
       "org.gradle.status": "release"
     }
@@ -24,13 +24,13 @@
       },
       "files": [
         {
-          "name": "InsertAffiliateAndroidSDK-1.1.5.aar",
-          "url": "InsertAffiliateAndroidSDK-1.1.5.aar",
-          "size": 58352,
-          "sha512": "68a11eff67be9a9eff85a9ca200390246f84c87dfe2b546a08f77a72aa80adbd110b938329c34cbcd4f90fcf711c4acdc48995a8c16d4da0a4764a81b076bfc1",
-          "sha256": "250d3f54f281da87171d04046dc13e5cbad9f6395de6e3f68a93b206a60d8622",
-          "sha1": "3c069d3d028a5445976bb9412a35b3a7bed4a846",
-          "md5": "040acbd6cd1ae3050313aa6b8289d60b"
+          "name": "InsertAffiliateAndroidSDK-1.1.6.aar",
+          "url": "InsertAffiliateAndroidSDK-1.1.6.aar",
+          "size": 59581,
+          "sha512": "2d804cfd3e656c7b5a5c2f5b7daebf8e654089f329f66552ebdac1eb1db67655baa3db921c5bf5845c9539009b62ad3beb0bed82c148ba68842fcb7348ad9cbb",
+          "sha256": "a88776d0ce28e02b5fe3dbcc0787915a0f3da2ac06d2d214fd4116d808ea55b7",
+          "sha1": "47629ac476725043e0670ad7b1b16a6c83ba4b8d",
+          "md5": "9769f1be4c0b72e1793f3438d42099dd"
         }
       ]
     },
@@ -102,13 +102,13 @@
       ],
       "files": [
         {
-          "name": "InsertAffiliateAndroidSDK-1.1.5.aar",
-          "url": "InsertAffiliateAndroidSDK-1.1.5.aar",
-          "size": 58352,
-          "sha512": "68a11eff67be9a9eff85a9ca200390246f84c87dfe2b546a08f77a72aa80adbd110b938329c34cbcd4f90fcf711c4acdc48995a8c16d4da0a4764a81b076bfc1",
-          "sha256": "250d3f54f281da87171d04046dc13e5cbad9f6395de6e3f68a93b206a60d8622",
-          "sha1": "3c069d3d028a5445976bb9412a35b3a7bed4a846",
-          "md5": "040acbd6cd1ae3050313aa6b8289d60b"
+          "name": "InsertAffiliateAndroidSDK-1.1.6.aar",
+          "url": "InsertAffiliateAndroidSDK-1.1.6.aar",
+          "size": 59581,
+          "sha512": "2d804cfd3e656c7b5a5c2f5b7daebf8e654089f329f66552ebdac1eb1db67655baa3db921c5bf5845c9539009b62ad3beb0bed82c148ba68842fcb7348ad9cbb",
+          "sha256": "a88776d0ce28e02b5fe3dbcc0787915a0f3da2ac06d2d214fd4116d808ea55b7",
+          "sha1": "47629ac476725043e0670ad7b1b16a6c83ba4b8d",
+          "md5": "9769f1be4c0b72e1793f3438d42099dd"
         }
       ]
     },
@@ -122,13 +122,13 @@
       },
       "files": [
         {
-          "name": "InsertAffiliateAndroidSDK-1.1.5-sources.jar",
-          "url": "InsertAffiliateAndroidSDK-1.1.5-sources.jar",
-          "size": 8826,
-          "sha512": "c2eba469907e95cd9a93e00acfd312f7a6b8d86f300678d800168714620dcdb6dca29d0fd18f9336dded6a35d0b76afe158f57ed3dd85e07480b97165cba3880",
-          "sha256": "10e3d81e4d0276b957fc31de3d3d435027b83d9a3c0f66ea8e4e49d22c84d58a",
-          "sha1": "76209b927f1c961f54c65aca2a4512b0dcfeef9f",
-          "md5": "9fa88127a70da7c5168087834485f74a"
+          "name": "InsertAffiliateAndroidSDK-1.1.6-sources.jar",
+          "url": "InsertAffiliateAndroidSDK-1.1.6-sources.jar",
+          "size": 9660,
+          "sha512": "b9cd9aa96179556df0534772330b7311175a77684a9a63d3a6fd40f509226209af83881b06b34fdfc465b41e132b8abc19602dbef437ed0b3ec7dac859c356d1",
+          "sha256": "3047281161026ae67262aaba2a51ac413bdb55a2bbcd1183e584cdb84c8e5e78",
+          "sha1": "fab792a604a80e5c162b29292a82e605b7263169",
+          "md5": "d8314ebca553a8e44339a816d8458ef2"
         }
       ]
     }
