@@ -149,7 +149,7 @@ InsertAffiliateManager.init(
 | Method | Best For | Setup Time | Complexity |
 |--------|----------|------------|------------|
 | [**RevenueCat**](#option-1-revenuecat-recommended) | Most developers, managed infrastructure | ~10 min | ⭐ Simple |
-| [**Google Play Direct (Beta)**](#option-2-google-play-direct-beta) | Cost-focused users, no 3rd party fees | ~15 min | ⭐⭐ Medium |
+| [**Google Play Direct**](#option-2-google-play-direct) | Cost-focused users, no 3rd party fees | ~15 min | ⭐⭐ Medium |
 | [**Iaptic**](#option-3-iaptic) | Custom requirements, direct control | ~20 min | ⭐⭐⭐ Advanced |
 
 <details open>
@@ -206,9 +206,7 @@ I/InsertAffiliate TAG: [Insert Affiliate] [VERBOSE] Found identifier: SHORTCODE-
 </details>
 
 <details>
-<summary><h4>Option 2: Google Play Direct (Beta)</h4></summary>
-
-Our direct Google Play integration is currently in beta.
+<summary><h4>Option 2: Google Play Direct</h4></summary>
 
 **Step 1: RTDN Setup**
 
