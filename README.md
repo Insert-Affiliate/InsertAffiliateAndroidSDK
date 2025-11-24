@@ -10,7 +10,7 @@ The official Android SDK for [Insert Affiliate](https://insertaffiliate.com) - t
 ## 📋 Table of Contents
 
 - [Quick Start (5 Minutes)](#-quick-start-5-minutes)
-- [Essential Setup](#-essential-setup)
+- [Essential Setup](#%EF%B8%8F-essential-setup)
   - [1. Initialize the SDK](#1-initialize-the-sdk)
   - [2. Configure In-App Purchase Verification](#2-configure-in-app-purchase-verification)
   - [3. Set Up Deep Linking](#3-set-up-deep-linking)
