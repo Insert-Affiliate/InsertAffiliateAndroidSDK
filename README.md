@@ -384,115 +384,33 @@ I/InsertAffiliate TAG: [Insert Affiliate] Storing affiliate identifier: AFFILIAT
 <details>
 <summary><h4>Option 2: Branch.io</h4></summary>
 
-**Prerequisites:**
-- [Branch SDK for Android](https://help.branch.io/developers-hub/docs/android-basic-integration) installed and configured
-- Create a Branch deep link and provide it to affiliates via the [Insert Affiliate dashboard](https://app.insertaffiliate.com/affiliates)
+Branch.io provides robust attribution and deferred deep linking capabilities.
 
-**Code Implementation:**
+**Key Integration Steps:**
+1. Install and configure [Branch SDK for Android](https://help.branch.io/developers-hub/docs/android-basic-integration)
+2. Extract `~referring_link` from Branch callback
+3. Pass to Insert Affiliate SDK using `setInsertAffiliateIdentifier()`
 
-```java
-import io.branch.referral.Branch;
-import io.branch.referral.BranchError;
-import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+📖 **[View complete Branch.io integration guide →](docs/deep-linking-branch.md)**
 
-public class MainActivity extends AppCompatActivity {
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
-        // Initialize Branch and capture referring link
-        Branch.sessionBuilder(this).withCallback(new Branch.BranchUniversalReferralInitListener() {
-            @Override
-            public void onInitFinished(BranchUniversalObject branchUniversalObject,
-                                     LinkProperties linkProperties,
-                                     BranchError error) {
-                if (error == null && branchUniversalObject != null) {
-                    try {
-                        // Extract referring link from Branch
-                        String referringLink = branchUniversalObject
-                            .getContentMetadata()
-                            .convertToJson()
-                            .getString("~referring_link");
-
-                        // Pass to Insert Affiliate SDK
-                        InsertAffiliateManager.setInsertAffiliateIdentifier(
-                            MainActivity.this,
-                            referringLink
-                        );
-
-                        // If using RevenueCat
-                        String affiliateId = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
-                        if (affiliateId != null) {
-                            Map<String, String> attributes = new HashMap<>();
-                            attributes.put("insert_affiliate", affiliateId);
-                            Purchases.getSharedInstance().setAttributes(attributes);
-                        }
-                    } catch (JSONException e) {
-                        Log.e("Branch", "Error parsing Branch data: " + e.getMessage());
-                    }
-                }
-            }
-        }).withData(this.getIntent().getData()).init();
-    }
-}
-```
-
-**Expected Console Output:**
-```
-I/InsertAffiliate TAG: [Insert Affiliate] Setting affiliate identifier.
-I/InsertAffiliate TAG: [Insert Affiliate] Referring link saved successfully: https://branch.io/abc123
-I/InsertAffiliate TAG: [Insert Affiliate] Short link received: AFFILIATE1
-```
-
-✅ **Branch.io setup complete!** Skip to [Verify Your Integration](#-verify-your-integration)
+✅ **After completing Branch setup**, skip to [Verify Your Integration](#-verify-your-integration)
 
 </details>
 
 <details>
 <summary><h4>Option 3: AppsFlyer</h4></summary>
 
-**Prerequisites:**
-- [AppsFlyer SDK for Android](https://dev.appsflyer.com/hc/docs/android-sdk-reference-getting-started) installed and configured
-- Create an AppsFlyer OneLink and provide it to affiliates via the [Insert Affiliate dashboard](https://app.insertaffiliate.com/affiliates)
+AppsFlyer provides enterprise-grade analytics and comprehensive attribution.
 
-**Code Implementation:**
+**Key Integration Steps:**
+1. Install and configure [AppsFlyer SDK for Android](https://dev.appsflyer.com/hc/docs/android-sdk-reference-getting-started)
+2. Create AppsFlyer OneLink in dashboard
+3. Extract deep link from `onAppOpenAttribution()` callback
+4. Pass to Insert Affiliate SDK using `setInsertAffiliateIdentifier()`
 
-```java
-import com.appsflyer.AppsFlyerLib;
-import com.appsflyer.AppsFlyerConversionListener;
-import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+📖 **[View complete AppsFlyer integration guide →](docs/deep-linking-appsflyer.md)**
 
-public class MainActivity extends AppCompatActivity {
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true);
-
-        AppsFlyerConversionListener conversionListener = new AppsFlyerConversionListener() {
-            @Override
-            public void onAppOpenAttribution(Map<String, String> attributionData) {
-                // Extract deep link from AppsFlyer
-                String link = attributionData.get("af_dp");
-                if (link == null) link = attributionData.get("af_deeplink");
-                if (link == null) link = attributionData.get("link");
-
-                if (link != null) {
-                    InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, link);
-                }
-            }
-
-            // Other callback methods...
-        };
-
-        AppsFlyerLib.getInstance().registerConversionListener(this, conversionListener);
-    }
-}
-```
-
-✅ **AppsFlyer setup complete!** Proceed to [Verify Your Integration](#-verify-your-integration)
+✅ **After completing AppsFlyer setup**, proceed to [Verify Your Integration](#-verify-your-integration)
 
 </details>
 
@@ -610,33 +528,24 @@ Automatically apply discounts or trials when users come from specific affiliates
 2. SDK automatically fetches and stores the modifier when affiliate identifier is set
 3. Use the modifier to construct dynamic product IDs
 
-**Get Stored Offer Code:**
+**Quick Example:**
 
 ```java
 String offerCode = InsertAffiliateManager.getStoredOfferCode(this);
 if (offerCode != null) {
     // Construct dynamic product ID
-    String productId = "oneMonthSubscription" + offerCode; // e.g., "oneMonthSubscription-oneweekfree"
-    // Use this productId with Google Play Billing or RevenueCat
+    String productId = "oneMonthSubscription" + offerCode;
+    // Result: "oneMonthSubscription-oneweekfree"
 }
 ```
 
-**Example with Google Play Billing:**
+📖 **[View complete Dynamic Offer Codes guide →](docs/dynamic-offer-codes.md)**
 
-```java
-String baseProductId = "premium_monthly";
-String offerCode = InsertAffiliateManager.getStoredOfferCode(this);
-
-List<String> skuList = new ArrayList<>();
-if (offerCode != null) {
-    skuList.add(baseProductId + offerCode); // Try promotional product first
-}
-skuList.add(baseProductId); // Fallback to base product
-
-// Query SKUs and launch billing flow
-```
-
-See the [full dynamic offer codes guide](#dynamic-offer-codes-complete-guide) below for complete examples.
+Includes full examples for:
+- Google Play Console setup (multiple products, base plans, developer offers)
+- Google Play Billing integration with automatic product selection
+- RevenueCat integration with dynamic offerings
+- Testing and troubleshooting
 
 </details>
 
@@ -678,138 +587,6 @@ long storedDate = InsertAffiliateManager.getAffiliateStoredDate(this);
 
 </details>
 
-
-<details id="dynamic-offer-codes-complete-guide">
-<summary><h3>Dynamic Offer Codes Complete Guide</h3></summary>
-
-### Setup in Insert Affiliate Dashboard
-
-1. Go to [app.insertaffiliate.com/affiliates](https://app.insertaffiliate.com/affiliates)
-2. Select an affiliate and click "View"
-3. Set the **Android IAP Modifier** (e.g., `-oneweekfree`)
-4. Save settings
-
-### Setup in Google Play Console
-
-**Option 1: Multiple Products (Recommended for Simplicity)**
-
-Create two products:
-- Base: `oneMonthSubscription`
-- Promo: `oneMonthSubscription-oneweekfree`
-
-Both must be activated and published to at least Internal Testing.
-
-**Option 2: Single Product with Multiple Base Plans**
-
-Create one product with multiple base plans, one with an offer attached.
-
-**Option 3: Developer Triggered Offers**
-
-Use one base product and apply offers programmatically.
-
-### Example: Google Play Billing Integration
-
-```java
-import com.android.billingclient.api.*;
-import com.aks.insertaffiliateandroid.InsertAffiliateManager;
-
-public class SubscriptionManager {
-    private static final String BASE_PRODUCT_ID = "oneMonthSubscription";
-    private BillingClient billingClient;
-    private Activity activity;
-
-    public void fetchProducts() {
-        String offerCode = InsertAffiliateManager.getStoredOfferCode(activity);
-
-        List<String> skuList = new ArrayList<>();
-        if (offerCode != null) {
-            skuList.add(BASE_PRODUCT_ID + offerCode); // Promotional product
-        }
-        skuList.add(BASE_PRODUCT_ID); // Fallback
-
-        SkuDetailsParams params = SkuDetailsParams.newBuilder()
-            .setSkusList(skuList)
-            .setType(BillingClient.SkuType.SUBS)
-            .build();
-
-        billingClient.querySkuDetailsAsync(params, (billingResult, skuDetailsList) -> {
-            if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                // Sort to prioritize promotional product
-                if (offerCode != null) {
-                    String promoProductId = BASE_PRODUCT_ID + offerCode;
-                    skuDetailsList.sort((a, b) ->
-                        a.getSku().equals(promoProductId) ? -1 : 1);
-                }
-
-                // Launch billing flow with first product (promotional if available)
-                launchBillingFlow(skuDetailsList.get(0));
-            }
-        });
-    }
-}
-```
-
-### Example: RevenueCat Integration
-
-**Setup in RevenueCat Dashboard:**
-
-Create separate offerings:
-- `premium_monthly` (base offering)
-- `premium_monthly_oneweekfree` (promotional offering)
-
-**Code:**
-
-```java
-import com.revenuecat.purchases.*;
-import com.aks.insertaffiliateandroid.InsertAffiliateManager;
-
-public class RevenueCatSubscriptionManager {
-    private static final String BASE_OFFERING = "premium_monthly";
-
-    public void fetchOfferings() {
-        String offerCode = InsertAffiliateManager.getStoredOfferCode(activity);
-
-        Purchases.getSharedInstance().getOfferings(new ReceiveOfferingsCallback() {
-            @Override
-            public void onReceived(@NonNull Offerings offerings) {
-                Offering targetOffering = null;
-
-                if (offerCode != null) {
-                    // Try promotional offering first
-                    String promoKey = BASE_OFFERING + offerCode;
-                    targetOffering = offerings.get(promoKey);
-                }
-
-                // Fallback to base offering
-                if (targetOffering == null) {
-                    targetOffering = offerings.get(BASE_OFFERING);
-                }
-
-                if (targetOffering != null) {
-                    Package packageToPurchase = targetOffering.getAvailablePackages().get(0);
-                    purchasePackage(packageToPurchase);
-                }
-            }
-
-            @Override
-            public void onError(@NonNull PurchasesError error) {
-                Log.e("RevenueCat", "Error: " + error.getMessage());
-            }
-        });
-    }
-}
-```
-
-### Expected Console Output
-
-```
-I/InsertAffiliate TAG: [Insert Affiliate] Attempting to fetch offer code for stored affiliate identifier...
-I/InsertAffiliate TAG: [Insert Affiliate] Successfully fetched and cleaned offer code: -oneweekfree
-I/InsertAffiliate TAG: [Insert Affiliate] Successfully stored offer code: -oneweekfree
-I/InsertAffiliate TAG: [Insert Affiliate] Offer code retrieved and stored successfully
-```
-
-</details>
 
 ---
 
