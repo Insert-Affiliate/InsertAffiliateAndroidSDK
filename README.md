@@ -479,7 +479,7 @@ I/InsertAffiliate TAG: [Insert Affiliate] Event tracked successfully
 </details>
 
 <details>
-<summary><h3>Short Codes (Beta)</h3></summary>
+<summary><h3>Short Codes</h3></summary>
 
 Short codes are 3-25 character alphanumeric codes affiliates can share (e.g., "SAVE20" in a TikTok video description).
 
