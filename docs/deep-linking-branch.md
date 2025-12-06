@@ -9,12 +9,43 @@ This guide shows how to integrate Insert Affiliate SDK with Branch.io for deep l
 
 ## Code Implementation
 
+Choose the example that matches your IAP verification platform:
+
+### With RevenueCat
+
 ```java
 import io.branch.referral.Branch;
 import io.branch.referral.BranchError;
+import com.revenuecat.purchases.Purchases;
 import com.aks.insertaffiliateandroid.InsertAffiliateManager;
 
 public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Initialize Insert Affiliate SDK
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true   // Verbose logging
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null) {
+                        Map<String, String> attributes = new HashMap<>();
+                        attributes.put("insert_affiliate", identifier);
+                        Purchases.getSharedInstance().setAttributes(attributes);
+                    }
+                }
+            }
+        );
+    }
 
     @Override
     protected void onStart() {
@@ -28,25 +59,159 @@ public class MainActivity extends AppCompatActivity {
                                      BranchError error) {
                 if (error == null && branchUniversalObject != null) {
                     try {
-                        // Extract referring link from Branch
                         String referringLink = branchUniversalObject
                             .getContentMetadata()
                             .convertToJson()
                             .getString("~referring_link");
 
-                        // Pass to Insert Affiliate SDK
+                        // This triggers the callback which updates RevenueCat
                         InsertAffiliateManager.setInsertAffiliateIdentifier(
                             MainActivity.this,
                             referringLink
                         );
+                    } catch (JSONException e) {
+                        Log.e("Branch", "Error parsing Branch data: " + e.getMessage());
+                    }
+                }
+            }
+        }).withData(this.getIntent().getData()).init();
+    }
+}
+```
 
-                        // If using RevenueCat
-                        String affiliateId = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
-                        if (affiliateId != null) {
-                            Map<String, String> attributes = new HashMap<>();
-                            attributes.put("insert_affiliate", affiliateId);
-                            Purchases.getSharedInstance().setAttributes(attributes);
-                        }
+### With Adapty
+
+```java
+import io.branch.referral.Branch;
+import io.branch.referral.BranchError;
+import com.adapty.Adapty;
+import com.adapty.models.AdaptyProfileParameters;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Initialize Insert Affiliate SDK
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true   // Verbose logging
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null && !identifier.isEmpty()) {
+                        updateAdaptyProfile(identifier);
+                    }
+                }
+            }
+        );
+    }
+
+    private void updateAdaptyProfile(String affiliateId) {
+        AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
+                .withCustomAttribute("insert_affiliate", affiliateId);
+
+        Adapty.updateProfile(builder.build(), error -> {
+            if (error != null) {
+                Log.e("MainActivity", "Failed to update Adapty: " + error.getMessage());
+            } else {
+                Log.d("MainActivity", "Adapty updated with: " + affiliateId);
+            }
+        });
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        // Initialize Branch and capture referring link
+        Branch.sessionBuilder(this).withCallback(new Branch.BranchUniversalReferralInitListener() {
+            @Override
+            public void onInitFinished(BranchUniversalObject branchUniversalObject,
+                                     LinkProperties linkProperties,
+                                     BranchError error) {
+                if (error == null && branchUniversalObject != null) {
+                    try {
+                        String referringLink = branchUniversalObject
+                            .getContentMetadata()
+                            .convertToJson()
+                            .getString("~referring_link");
+
+                        // This triggers the callback which updates Adapty
+                        InsertAffiliateManager.setInsertAffiliateIdentifier(
+                            MainActivity.this,
+                            referringLink
+                        );
+                    } catch (JSONException e) {
+                        Log.e("Branch", "Error parsing Branch data: " + e.getMessage());
+                    }
+                }
+            }
+        }).withData(this.getIntent().getData()).init();
+    }
+}
+```
+
+### With Google Play Direct or Iaptic
+
+```java
+import io.branch.referral.Branch;
+import io.branch.referral.BranchError;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Initialize Insert Affiliate SDK
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true   // Verbose logging
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    Log.i("InsertAffiliate", "Affiliate identifier stored: " + identifier);
+                    // Identifier is stored automatically for direct store integration
+                }
+            }
+        );
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        // Initialize Branch and capture referring link
+        Branch.sessionBuilder(this).withCallback(new Branch.BranchUniversalReferralInitListener() {
+            @Override
+            public void onInitFinished(BranchUniversalObject branchUniversalObject,
+                                     LinkProperties linkProperties,
+                                     BranchError error) {
+                if (error == null && branchUniversalObject != null) {
+                    try {
+                        String referringLink = branchUniversalObject
+                            .getContentMetadata()
+                            .convertToJson()
+                            .getString("~referring_link");
+
+                        InsertAffiliateManager.setInsertAffiliateIdentifier(
+                            MainActivity.this,
+                            referringLink
+                        );
                     } catch (JSONException e) {
                         Log.e("Branch", "Error parsing Branch data: " + e.getMessage());
                     }

@@ -9,9 +9,14 @@ This guide shows how to integrate Insert Affiliate SDK with AppsFlyer for deep l
 
 ## Code Implementation
 
+Choose the example that matches your IAP verification platform:
+
+### With RevenueCat
+
 ```java
 import com.appsflyer.AppsFlyerLib;
 import com.appsflyer.AppsFlyerConversionListener;
+import com.revenuecat.purchases.Purchases;
 import com.aks.insertaffiliateandroid.InsertAffiliateManager;
 
 public class MainActivity extends AppCompatActivity {
@@ -20,33 +25,41 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true);
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true   // Verbose logging
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null) {
+                        Map<String, String> attributes = new HashMap<>();
+                        attributes.put("insert_affiliate", identifier);
+                        Purchases.getSharedInstance().setAttributes(attributes);
+                    }
+                }
+            }
+        );
 
         AppsFlyerConversionListener conversionListener = new AppsFlyerConversionListener() {
             @Override
             public void onAppOpenAttribution(Map<String, String> attributionData) {
-                // Extract deep link from AppsFlyer
                 String link = attributionData.get("af_dp");
                 if (link == null) link = attributionData.get("af_deeplink");
                 if (link == null) link = attributionData.get("link");
 
                 if (link != null) {
+                    // This triggers the callback which updates RevenueCat
                     InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, link);
-
-                    // If using RevenueCat
-                    String affiliateId = InsertAffiliateManager.returnInsertAffiliateIdentifier(MainActivity.this);
-                    if (affiliateId != null) {
-                        Map<String, String> attributes = new HashMap<>();
-                        attributes.put("insert_affiliate", affiliateId);
-                        Purchases.getSharedInstance().setAttributes(attributes);
-                    }
                 }
             }
 
             @Override
-            public void onConversionDataSuccess(Map<String, Object> conversionData) {
-                // Handle conversion data if needed
-            }
+            public void onConversionDataSuccess(Map<String, Object> conversionData) { }
 
             @Override
             public void onConversionDataFail(String errorMessage) {
@@ -59,11 +72,148 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
-        AppsFlyerLib.getInstance().init(
-            "YOUR_APPSFLYER_DEV_KEY",
-            conversionListener,
-            this
+        AppsFlyerLib.getInstance().init("YOUR_APPSFLYER_DEV_KEY", conversionListener, this);
+        AppsFlyerLib.getInstance().start(this);
+    }
+}
+```
+
+### With Adapty
+
+```java
+import com.appsflyer.AppsFlyerLib;
+import com.appsflyer.AppsFlyerConversionListener;
+import com.adapty.Adapty;
+import com.adapty.models.AdaptyProfileParameters;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true   // Verbose logging
         );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null && !identifier.isEmpty()) {
+                        updateAdaptyProfile(identifier);
+                    }
+                }
+            }
+        );
+
+        AppsFlyerConversionListener conversionListener = new AppsFlyerConversionListener() {
+            @Override
+            public void onAppOpenAttribution(Map<String, String> attributionData) {
+                String link = attributionData.get("af_dp");
+                if (link == null) link = attributionData.get("af_deeplink");
+                if (link == null) link = attributionData.get("link");
+
+                if (link != null) {
+                    // This triggers the callback which updates Adapty
+                    InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, link);
+                }
+            }
+
+            @Override
+            public void onConversionDataSuccess(Map<String, Object> conversionData) { }
+
+            @Override
+            public void onConversionDataFail(String errorMessage) {
+                Log.e("AppsFlyer", "Conversion data failed: " + errorMessage);
+            }
+
+            @Override
+            public void onAppOpenAttributionFailure(String errorMessage) {
+                Log.e("AppsFlyer", "Attribution failed: " + errorMessage);
+            }
+        };
+
+        AppsFlyerLib.getInstance().init("YOUR_APPSFLYER_DEV_KEY", conversionListener, this);
+        AppsFlyerLib.getInstance().start(this);
+    }
+
+    private void updateAdaptyProfile(String affiliateId) {
+        AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
+                .withCustomAttribute("insert_affiliate", affiliateId);
+
+        Adapty.updateProfile(builder.build(), error -> {
+            if (error != null) {
+                Log.e("MainActivity", "Failed to update Adapty: " + error.getMessage());
+            } else {
+                Log.d("MainActivity", "Adapty updated with: " + affiliateId);
+            }
+        });
+    }
+}
+```
+
+### With Google Play Direct or Iaptic
+
+```java
+import com.appsflyer.AppsFlyerLib;
+import com.appsflyer.AppsFlyerConversionListener;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true   // Verbose logging
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    Log.i("InsertAffiliate", "Affiliate identifier stored: " + identifier);
+                    // Identifier is stored automatically for direct store integration
+                }
+            }
+        );
+
+        AppsFlyerConversionListener conversionListener = new AppsFlyerConversionListener() {
+            @Override
+            public void onAppOpenAttribution(Map<String, String> attributionData) {
+                String link = attributionData.get("af_dp");
+                if (link == null) link = attributionData.get("af_deeplink");
+                if (link == null) link = attributionData.get("link");
+
+                if (link != null) {
+                    InsertAffiliateManager.setInsertAffiliateIdentifier(MainActivity.this, link);
+                }
+            }
+
+            @Override
+            public void onConversionDataSuccess(Map<String, Object> conversionData) { }
+
+            @Override
+            public void onConversionDataFail(String errorMessage) {
+                Log.e("AppsFlyer", "Conversion data failed: " + errorMessage);
+            }
+
+            @Override
+            public void onAppOpenAttributionFailure(String errorMessage) {
+                Log.e("AppsFlyer", "Attribution failed: " + errorMessage);
+            }
+        };
+
+        AppsFlyerLib.getInstance().init("YOUR_APPSFLYER_DEV_KEY", conversionListener, this);
         AppsFlyerLib.getInstance().start(this);
     }
 }
