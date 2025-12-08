@@ -107,11 +107,71 @@ public class InsertAffiliateManager {
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] SDK initialization completed");
         }
-        
+
+        // Report SDK initialization for onboarding verification (fire and forget)
+        reportSdkInitIfNeeded(activity);
+
         // Automatically capture install referrer data if enabled
         if (insertLinks) {
             captureInstallReferrer(activity); // Deferred Deep Linking
         }
+    }
+
+    /**
+     * Reports SDK initialization to the backend for onboarding verification.
+     * Only reports once per install to minimize server load.
+     * @param activity The activity context
+     */
+    private static void reportSdkInitIfNeeded(Activity activity) {
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+
+                // Only report once per install
+                boolean alreadyReported = sharedPreferences.getBoolean("sdk_init_reported", false);
+                if (alreadyReported) {
+                    return;
+                }
+
+                if (verboseLogging) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Reporting SDK initialization for onboarding verification...");
+                }
+
+                URL url = new URL("https://api.insertaffiliate.com/V1/onboarding/sdk-init");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
+
+                JSONObject payload = new JSONObject();
+                payload.put("companyId", companyCode);
+
+                byte[] outputBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                connection.getOutputStream().write(outputBytes);
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putBoolean("sdk_init_reported", true);
+                    editor.apply();
+                    if (verboseLogging) {
+                        Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialization reported successfully");
+                    }
+                } else if (verboseLogging) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialization report failed with status: " + responseCode);
+                }
+            } catch (Exception e) {
+                // Silently fail - this is non-critical telemetry
+                if (verboseLogging) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialization report error: " + e.getMessage());
+                }
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }).start();
     }
 
     public static String getCompanyCode() {
