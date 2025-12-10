@@ -149,8 +149,9 @@ InsertAffiliateManager.init(
 | Method | Best For | Setup Time | Complexity |
 |--------|----------|------------|------------|
 | [**RevenueCat**](#option-1-revenuecat-recommended) | Most developers, managed infrastructure | ~10 min | ⭐ Simple |
-| [**Google Play Direct**](#option-2-google-play-direct) | Cost-focused users, no 3rd party fees | ~15 min | ⭐⭐ Medium |
-| [**Iaptic**](#option-3-iaptic) | Custom requirements, direct control | ~20 min | ⭐⭐⭐ Advanced |
+| [**Adapty**](#option-2-adapty) | Paywall A/B testing, analytics | ~10 min | ⭐ Simple |
+| [**Google Play Direct**](#option-3-google-play-direct) | Cost-focused users, no 3rd party fees | ~15 min | ⭐⭐ Medium |
+| [**Iaptic**](#option-4-iaptic) | Custom requirements, direct control | ~20 min | ⭐⭐⭐ Advanced |
 
 <details open>
 <summary><h4>Option 1: RevenueCat (Recommended)</h4></summary>
@@ -206,7 +207,129 @@ I/InsertAffiliate TAG: [Insert Affiliate] [VERBOSE] Found identifier: SHORTCODE-
 </details>
 
 <details>
-<summary><h4>Option 2: Google Play Direct</h4></summary>
+<summary><h4>Option 2: Adapty</h4></summary>
+
+**Step 1: Add Adapty Dependency**
+
+Add Adapty to your **module's** `build.gradle`:
+
+```gradle
+dependencies {
+    implementation 'io.adapty:android-sdk:3.3.0'
+    implementation 'io.adapty:android-ui:3.3.0'
+}
+```
+
+**Step 2: Initialize Adapty**
+
+In your `Application` class (e.g., `MyApp.java`):
+
+```java
+import android.app.Application;
+import com.adapty.Adapty;
+import com.adapty.models.AdaptyConfig;
+import com.adapty.utils.AdaptyLogLevel;
+
+public class MyApp extends Application {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        // Set log level before activation (optional)
+        Adapty.setLogLevel(AdaptyLogLevel.VERBOSE);
+
+        // Initialize Adapty
+        Adapty.activate(
+            getApplicationContext(),
+            new AdaptyConfig.Builder("YOUR_ADAPTY_PUBLIC_KEY").build()  // From https://app.adapty.io/
+        );
+    }
+}
+```
+
+**Step 3: Code Setup**
+
+In your `MainActivity.java`:
+
+```java
+import com.adapty.Adapty;
+import com.adapty.models.AdaptyProfileParameters;
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Initialize Insert Affiliate SDK
+        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true);
+
+        // Set up callback for affiliate identifier changes - update Adapty when identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null && !identifier.isEmpty()) {
+                        updateAdaptyProfile(identifier);
+                    }
+                }
+            }
+        );
+    }
+
+    private void updateAdaptyProfile(String affiliateId) {
+        AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
+                .withCustomAttribute("insert_affiliate", affiliateId);
+
+        Adapty.updateProfile(builder.build(), error -> {
+            if (error != null) {
+                Log.e("MainActivity", "Failed to update Adapty profile: " + error.getMessage());
+            } else {
+                Log.d("MainActivity", "Adapty profile updated with insert_affiliate: " + affiliateId);
+            }
+        });
+    }
+}
+```
+
+**Expected Console Output:**
+```
+D/MainActivity: Adapty profile updated with insert_affiliate: SHORTCODE-a1b2c3
+```
+
+**Step 4: Webhook Setup**
+
+1. In your [Insert Affiliate dashboard](https://app.insertaffiliate.com/settings):
+   - Set **In-App Purchase Verification** to `Adapty`
+   - Copy the **Adapty Webhook URL**
+   - Copy the **Adapty Webhook Authorization Header** value
+
+2. In the [Adapty Dashboard](https://app.adapty.io/integrations):
+   - Navigate to **Integrations** → **Webhooks**
+   - Set **Production URL** to the webhook URL from Insert Affiliate
+   - Set **Sandbox URL** to the same webhook URL
+   - Paste the authorization header value into **Authorization header value**
+   - Enable these options:
+     - **Exclude historical events**
+     - **Send attribution**
+     - **Send trial price**
+     - **Send user attributes**
+   - Save the configuration
+
+**Step 5: Verify Integration**
+
+To confirm the affiliate identifier is set correctly:
+1. Go to [app.adapty.io/profiles/users](https://app.adapty.io/profiles/users)
+2. Find the test user who made a purchase
+3. Look for `insert_affiliate` in **Custom attributes** with format: `{SHORT_CODE}-{UUID}`
+
+✅ **Adapty setup complete!** Now skip to [Step 3: Set Up Deep Linking](#3-set-up-deep-linking)
+
+</details>
+
+<details>
+<summary><h4>Option 3: Google Play Direct</h4></summary>
 
 **Step 1: RTDN Setup**
 
@@ -245,7 +368,7 @@ I/InsertAffiliate TAG: [Insert Affiliate] Expected transaction stored successful
 </details>
 
 <details>
-<summary><h4>Option 3: Iaptic</h4></summary>
+<summary><h4>Option 4: Iaptic</h4></summary>
 
 **Step 1: Code Setup**
 
@@ -318,6 +441,118 @@ Insert Links is Insert Affiliate's built-in deep linking solution—no third-par
 
 **Code Implementation:**
 
+Choose the example that matches your IAP verification platform:
+
+**With RevenueCat:**
+
+```java
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+import com.revenuecat.purchases.Purchases;
+import android.content.Intent;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Initialize SDK with Insert Links enabled
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true,  // Verbose logging
+            true   // Enable Insert Links
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null) {
+                        Map<String, String> attributes = new HashMap<>();
+                        attributes.put("insert_affiliate", identifier);
+                        Purchases.getSharedInstance().setAttributes(attributes);
+                    }
+                }
+            }
+        );
+
+        // Handle deep link from app launch
+        InsertAffiliateManager.handleInsertLink(this, getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        InsertAffiliateManager.handleInsertLink(this, intent);
+    }
+}
+```
+
+**With Adapty:**
+
+```java
+import com.aks.insertaffiliateandroid.InsertAffiliateManager;
+import com.adapty.Adapty;
+import com.adapty.models.AdaptyProfileParameters;
+import android.content.Intent;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        // Initialize SDK with Insert Links enabled
+        InsertAffiliateManager.init(
+            this,
+            "YOUR_COMPANY_CODE",
+            true,  // Verbose logging
+            true   // Enable Insert Links
+        );
+
+        // Set up callback for affiliate identifier changes
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
+                @Override
+                public void onIdentifierChanged(String identifier) {
+                    if (identifier != null && !identifier.isEmpty()) {
+                        updateAdaptyProfile(identifier);
+                    }
+                }
+            }
+        );
+
+        // Handle deep link from app launch
+        InsertAffiliateManager.handleInsertLink(this, getIntent());
+    }
+
+    private void updateAdaptyProfile(String affiliateId) {
+        AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
+                .withCustomAttribute("insert_affiliate", affiliateId);
+
+        Adapty.updateProfile(builder.build(), error -> {
+            if (error != null) {
+                Log.e("MainActivity", "Failed to update Adapty: " + error.getMessage());
+            } else {
+                Log.d("MainActivity", "Adapty updated with: " + affiliateId);
+            }
+        });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        InsertAffiliateManager.handleInsertLink(this, intent);
+    }
+}
+```
+
+**With Google Play Direct or Iaptic:**
+
 ```java
 import com.aks.insertaffiliateandroid.InsertAffiliateManager;
 import android.content.Intent;
@@ -341,14 +576,8 @@ public class MainActivity extends AppCompatActivity {
             new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
                 @Override
                 public void onIdentifierChanged(String identifier) {
-                    Log.i("InsertAffiliate", "Affiliate identifier: " + identifier);
-
-                    // If using RevenueCat, update attributes here
-                    if (identifier != null) {
-                        Map<String, String> attributes = new HashMap<>();
-                        attributes.put("insert_affiliate", identifier);
-                        Purchases.getSharedInstance().setAttributes(attributes);
-                    }
+                    Log.i("InsertAffiliate", "Affiliate identifier stored: " + identifier);
+                    // Identifier is stored automatically for direct store integration
                 }
             }
         );
@@ -361,8 +590,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-
-        // Handle deep link when app is already running
         InsertAffiliateManager.handleInsertLink(this, intent);
     }
 }
