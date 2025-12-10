@@ -44,6 +44,24 @@ public class InsertAffiliateManager {
     private static boolean verboseLogging = false;
     private static boolean insertLinks = false;
     private static long affiliateAttributionActiveTime = 0; // Time in seconds for affiliate attribution to remain active (0 = no timeout)
+
+    // Source types for affiliate association tracking
+    public enum AffiliateAssociationSource {
+        DEEP_LINK_ANDROID("deep_link_android"),      // Android deep link with ?insertAffiliate= param
+        INSTALL_REFERRER("install_referrer"),        // Android Play Store install referrer
+        SHORT_CODE_MANUAL("short_code_manual"),      // Developer called setShortCode()
+        REFERRING_LINK("referring_link");            // Developer called setInsertAffiliateIdentifier()
+
+        private final String value;
+
+        AffiliateAssociationSource(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+    }
     
     // Thread-safe callback mechanism
     private static final ExecutorService callbackExecutor = Executors.newSingleThreadExecutor();
@@ -107,11 +125,147 @@ public class InsertAffiliateManager {
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] SDK initialization completed");
         }
-        
+
+        // Report SDK initialization for onboarding verification (fire and forget)
+        reportSdkInitIfNeeded(activity);
+
         // Automatically capture install referrer data if enabled
         if (insertLinks) {
             captureInstallReferrer(activity); // Deferred Deep Linking
         }
+    }
+
+    /**
+     * Reports SDK initialization to the backend for onboarding verification.
+     * Only reports once per install to minimize server load.
+     * @param activity The activity context
+     */
+    private static void reportSdkInitIfNeeded(Activity activity) {
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+
+                // Only report once per install
+                boolean alreadyReported = sharedPreferences.getBoolean("sdk_init_reported", false);
+                if (alreadyReported) {
+                    return;
+                }
+
+                if (verboseLogging) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] Reporting SDK initialization for onboarding verification...");
+                }
+
+                URL url = new URL("https://api.insertaffiliate.com/V1/onboarding/sdk-init");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
+
+                JSONObject payload = new JSONObject();
+                payload.put("companyId", companyCode);
+
+                byte[] outputBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                connection.getOutputStream().write(outputBytes);
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putBoolean("sdk_init_reported", true);
+                    editor.apply();
+                    if (verboseLogging) {
+                        Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialization reported successfully");
+                    }
+                } else if (verboseLogging) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialization report failed with status: " + responseCode);
+                }
+            } catch (Exception e) {
+                // Silently fail - this is non-critical telemetry
+                if (verboseLogging) {
+                    Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialization report error: " + e.getMessage());
+                }
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * Reports a new affiliate association to the backend for tracking.
+     * Only reports each unique affiliateIdentifier once to prevent duplicates.
+     * @param activity The activity context
+     * @param affiliateIdentifier The full affiliate identifier (shortCode-deviceId)
+     * @param source The source of the association
+     */
+    private static void reportAffiliateAssociationIfNeeded(Activity activity, String affiliateIdentifier, AffiliateAssociationSource source) {
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                if (companyCode == null || companyCode.isEmpty()) {
+                    verboseLog("Cannot report affiliate association: no company code available");
+                    return;
+                }
+
+                SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+
+                // Get the set of already-reported affiliate identifiers
+                String reportedAssociationsJson = sharedPreferences.getString("reported_affiliate_associations", "[]");
+                java.util.Set<String> reportedAssociations = new java.util.HashSet<>();
+                try {
+                    org.json.JSONArray jsonArray = new org.json.JSONArray(reportedAssociationsJson);
+                    for (int i = 0; i < jsonArray.length(); i++) {
+                        reportedAssociations.add(jsonArray.getString(i));
+                    }
+                } catch (Exception e) {
+                    verboseLog("Error parsing reported associations: " + e.getMessage());
+                }
+
+                // Check if this affiliate identifier has already been reported
+                if (reportedAssociations.contains(affiliateIdentifier)) {
+                    verboseLog("Affiliate association already reported for: " + affiliateIdentifier + ", skipping");
+                    return;
+                }
+
+                verboseLog("Reporting new affiliate association: " + affiliateIdentifier + " (source: " + source.getValue() + ")");
+
+                URL url = new URL("https://api.insertaffiliate.com/V1/onboarding/affiliate-associated");
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
+
+                JSONObject payload = new JSONObject();
+                payload.put("companyId", companyCode);
+                payload.put("affiliateIdentifier", affiliateIdentifier);
+                payload.put("source", source.getValue());
+                payload.put("timestamp", java.time.Instant.now().toString());
+
+                byte[] outputBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+                connection.getOutputStream().write(outputBytes);
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    // Add to reported set and persist
+                    reportedAssociations.add(affiliateIdentifier);
+                    org.json.JSONArray updatedArray = new org.json.JSONArray(reportedAssociations);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("reported_affiliate_associations", updatedArray.toString());
+                    editor.apply();
+                    verboseLog("Affiliate association reported successfully for: " + affiliateIdentifier);
+                } else {
+                    verboseLog("Affiliate association report failed with status: " + responseCode);
+                }
+            } catch (Exception e) {
+                // Silently fail - this is non-critical telemetry
+                verboseLog("Affiliate association report error: " + e.getMessage());
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+        }).start();
     }
 
     public static String getCompanyCode() {
@@ -178,7 +332,7 @@ public class InsertAffiliateManager {
             public void onAffiliateDetailsReceived(AffiliateDetails details) {
                 if (details != null) {
                     // Valid short code, store it
-                    storeInsertAffiliateReferringLink(activity, capitalisedShortCode);
+                    storeInsertAffiliateReferringLink(activity, capitalisedShortCode, AffiliateAssociationSource.SHORT_CODE_MANUAL);
                     Log.i("InsertAffiliate TAG", "[Insert Affiliate] Short code " + capitalisedShortCode + " validated and stored successfully.");
                     if (callback != null) callback.onValidationComplete(true);
                 } else {
@@ -333,7 +487,7 @@ public class InsertAffiliateManager {
         if (isShortCode(referringLink)) {
             Log.i("InsertAffiliate TAG","[Insert Affiliate] Referring link is already a short code.");
             verboseLog("Link is already a short code, storing directly");
-            storeInsertAffiliateReferringLink(activity, referringLink);
+            storeInsertAffiliateReferringLink(activity, referringLink, AffiliateAssociationSource.REFERRING_LINK);
             return;
         }
         
@@ -347,7 +501,7 @@ public class InsertAffiliateManager {
         } catch (Exception e) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to encode referring link: " + e.getMessage());
             verboseLog("Error encoding referring link: " + e.getMessage());
-            storeInsertAffiliateReferringLink(activity, referringLink);
+            storeInsertAffiliateReferringLink(activity, referringLink, AffiliateAssociationSource.REFERRING_LINK);
             return;
         }
 
@@ -384,18 +538,18 @@ public class InsertAffiliateManager {
     
                         if (!shortLink.isEmpty()) {
                             Log.i("InsertAffiliate TAG", "[Insert Affiliate] Short link received: " + shortLink);
-                            storeInsertAffiliateReferringLink(activity, shortLink);
+                            storeInsertAffiliateReferringLink(activity, shortLink, AffiliateAssociationSource.REFERRING_LINK);
                         } else {
                             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Unexpected JSON format");
-                            storeInsertAffiliateReferringLink(activity, referringLink);
+                            storeInsertAffiliateReferringLink(activity, referringLink, AffiliateAssociationSource.REFERRING_LINK);
                         }
                     } else {
                         Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed with HTTP code: " + responseCode);
-                        storeInsertAffiliateReferringLink(activity, referringLink);
+                        storeInsertAffiliateReferringLink(activity, referringLink, AffiliateAssociationSource.REFERRING_LINK);
                     }
                 } catch (Exception e) {
                     Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: " + e.getMessage());
-                    storeInsertAffiliateReferringLink(activity, referringLink);
+                    storeInsertAffiliateReferringLink(activity, referringLink, AffiliateAssociationSource.REFERRING_LINK);
                 } finally {
                     if (connection != null) {
                         connection.disconnect();
@@ -404,16 +558,16 @@ public class InsertAffiliateManager {
             }).start();
         } catch (MalformedURLException e) {
             Log.e("InsertAffiliate TAG", "Invalid URL: " + urlString);
-            storeInsertAffiliateReferringLink(activity, referringLink);
+            storeInsertAffiliateReferringLink(activity, referringLink, AffiliateAssociationSource.REFERRING_LINK);
         }
 
         // Log success
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referring link saved successfully: " + referringLink);
     }
 
-    private static void storeInsertAffiliateReferringLink(Activity activity, String referringLink) {
-        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Storing affiliate identifier: " + referringLink);
-        
+    private static void storeInsertAffiliateReferringLink(Activity activity, String referringLink, AffiliateAssociationSource source) {
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Storing affiliate identifier: " + referringLink + " (source: " + source.getValue() + ")");
+
         SharedPreferences sharedPreferences
                 = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE
         );
@@ -422,26 +576,33 @@ public class InsertAffiliateManager {
         String existingLink = sharedPreferences.getString("referring_link", null);
         boolean isNewOrDifferent = existingLink == null || !existingLink.equals(referringLink);
 
+        if (!isNewOrDifferent) {
+            verboseLog("Link " + referringLink + " is already stored, skipping duplicate storage");
+            return;
+        }
+
         SharedPreferences.Editor editor = sharedPreferences
                 .edit();
         editor.putString("referring_link", referringLink);
-        
-        // Only store the attribution date if this is a new or different affiliate identifier
-        if (isNewOrDifferent) {
-            long currentTimeSeconds = System.currentTimeMillis() / 1000;
-            editor.putLong("affiliate_stored_date", currentTimeSeconds);
-            verboseLog("New affiliate identifier stored with fresh attribution date: " + currentTimeSeconds);
-        } else {
-            verboseLog("Same affiliate identifier, preserving existing attribution date");
-        }
-        
+
+        // Store the attribution date for new affiliate identifier
+        long currentTimeSeconds = System.currentTimeMillis() / 1000;
+        editor.putLong("affiliate_stored_date", currentTimeSeconds);
+        verboseLog("New affiliate identifier stored with fresh attribution date: " + currentTimeSeconds);
+
         editor.commit();
-        
+
         // Notify callback of identifier change
         notifyIdentifierChange(activity);
-        
+
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] Attempting to fetch offer code for stored affiliate identifier...");
         retrieveAndStoreOfferCode(activity, referringLink);
+
+        // Report this new affiliate association to the backend (fire and forget)
+        String fullIdentifier = returnInsertAffiliateIdentifier(activity, true);
+        if (fullIdentifier != null) {
+            reportAffiliateAssociationIfNeeded(activity, fullIdentifier, source);
+        }
     }
 
     public static String returnInsertAffiliateIdentifier(Activity activity) {
@@ -561,7 +722,7 @@ public class InsertAffiliateManager {
             // If we have insertAffiliate parameter, use it as the affiliate identifier
             if (insertAffiliate != null && !insertAffiliate.isEmpty()) {
                 verboseLog("Found insertAffiliate parameter, setting as affiliate identifier: " + insertAffiliate);
-                setInsertAffiliateIdentifier(activity, insertAffiliate);
+                storeInsertAffiliateReferringLink(activity, insertAffiliate, AffiliateAssociationSource.INSTALL_REFERRER);
             } else {
                 verboseLog("No insertAffiliate parameter found in referrer data");
             }
@@ -955,9 +1116,9 @@ public class InsertAffiliateManager {
         if (insertAffiliate != null && !insertAffiliate.isEmpty()) {
             verboseLog("Found insertAffiliate parameter: " + insertAffiliate);
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] Deep link detected with insertAffiliate parameter: " + insertAffiliate);
-            
+
             // Set the affiliate identifier using the found parameter
-            setInsertAffiliateIdentifier(activity, insertAffiliate);
+            storeInsertAffiliateReferringLink(activity, insertAffiliate, AffiliateAssociationSource.DEEP_LINK_ANDROID);
         } else {
             verboseLog("No insertAffiliate parameter found in deep link");
         }
