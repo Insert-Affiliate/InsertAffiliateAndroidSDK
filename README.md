@@ -229,8 +229,14 @@ import android.app.Application;
 import com.adapty.Adapty;
 import com.adapty.models.AdaptyConfig;
 import com.adapty.utils.AdaptyLogLevel;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MyApp extends Application {
+    // Track Adapty activation state to prevent double activation and fix race conditions
+    private static final CountDownLatch adaptyActivationLatch = new CountDownLatch(1);
+    private static final AtomicBoolean adaptyActivated = new AtomicBoolean(false);
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -238,11 +244,25 @@ public class MyApp extends Application {
         // Set log level before activation (optional)
         Adapty.setLogLevel(AdaptyLogLevel.VERBOSE);
 
-        // Initialize Adapty
-        Adapty.activate(
-            getApplicationContext(),
-            new AdaptyConfig.Builder("YOUR_ADAPTY_PUBLIC_KEY").build()  // From https://app.adapty.io/
-        );
+        // Initialize Adapty with protection against double activation
+        if (adaptyActivated.compareAndSet(false, true)) {
+            Adapty.activate(
+                getApplicationContext(),
+                new AdaptyConfig.Builder("YOUR_ADAPTY_PUBLIC_KEY").build(),
+                (AdaptyProfile profile) -> {
+                    adaptyActivationLatch.countDown();  // Signal activation complete
+                }
+            );
+        }
+    }
+
+    // Call this method to wait for Adapty activation before updating profile
+    public static void waitForAdaptyActivation() {
+        try {
+            adaptyActivationLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
 ```
@@ -279,16 +299,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateAdaptyProfile(String affiliateId) {
-        AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
-                .withCustomAttribute("insert_affiliate", affiliateId);
+        // Run on background thread to avoid blocking UI while waiting for Adapty
+        new Thread(() -> {
+            // Wait for Adapty activation before updating profile
+            MyApp.waitForAdaptyActivation();
 
-        Adapty.updateProfile(builder.build(), error -> {
-            if (error != null) {
-                Log.e("MainActivity", "Failed to update Adapty profile: " + error.getMessage());
-            } else {
-                Log.d("MainActivity", "Adapty profile updated with insert_affiliate: " + affiliateId);
-            }
-        });
+            AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
+                    .withCustomAttribute("insert_affiliate", affiliateId);
+
+            Adapty.updateProfile(builder.build(), error -> {
+                if (error != null) {
+                    Log.e("MainActivity", "Failed to update Adapty profile: " + error.getMessage());
+                } else {
+                    Log.d("MainActivity", "Adapty profile updated with insert_affiliate: " + affiliateId);
+                }
+            });
+        }).start();
     }
 }
 ```

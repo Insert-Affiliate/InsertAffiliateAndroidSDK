@@ -115,16 +115,22 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateAdaptyProfile(String affiliateId) {
-        AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
-                .withCustomAttribute("insert_affiliate", affiliateId);
+        // Run on background thread to avoid blocking UI while waiting for Adapty
+        new Thread(() -> {
+            // Wait for Adapty activation before updating profile (see README for MyApp setup)
+            MyApp.waitForAdaptyActivation();
 
-        Adapty.updateProfile(builder.build(), error -> {
-            if (error != null) {
-                Log.e("MainActivity", "Failed to update Adapty: " + error.getMessage());
-            } else {
-                Log.d("MainActivity", "Adapty updated with: " + affiliateId);
-            }
-        });
+            AdaptyProfileParameters.Builder builder = new AdaptyProfileParameters.Builder()
+                    .withCustomAttribute("insert_affiliate", affiliateId);
+
+            Adapty.updateProfile(builder.build(), error -> {
+                if (error != null) {
+                    Log.e("MainActivity", "Failed to update Adapty: " + error.getMessage());
+                } else {
+                    Log.d("MainActivity", "Adapty updated with: " + affiliateId);
+                }
+            });
+        }).start();
     }
 
     @Override
