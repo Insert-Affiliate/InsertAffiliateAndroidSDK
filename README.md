@@ -179,6 +179,10 @@ public class MainActivity extends AppCompatActivity {
             Map<String, String> attributes = new HashMap<>();
             attributes.put("insert_affiliate", affiliateId);
             Purchases.getSharedInstance().setAttributes(attributes);
+            Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
+                error -> { /* handle error */ },
+                offerings -> { /* offerings synced */ }
+            );
         }
     }
 }
@@ -499,6 +503,10 @@ public class MainActivity extends AppCompatActivity {
                         Map<String, String> attributes = new HashMap<>();
                         attributes.put("insert_affiliate", identifier);
                         Purchases.getSharedInstance().setAttributes(attributes);
+                        Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
+                            error -> { /* handle error */ },
+                            offerings -> { /* offerings synced */ }
+                        );
                     }
                 }
             }

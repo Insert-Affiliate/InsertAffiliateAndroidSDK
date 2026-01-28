@@ -40,6 +40,10 @@ public class MainActivity extends AppCompatActivity {
                         Map<String, String> attributes = new HashMap<>();
                         attributes.put("insert_affiliate", identifier);
                         Purchases.getSharedInstance().setAttributes(attributes);
+                        Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
+                            error -> { /* handle error */ },
+                            offerings -> { /* offerings synced */ }
+                        );
                     }
                 }
             }
