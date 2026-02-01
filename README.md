@@ -923,8 +923,7 @@ Long expiryTimestamp = InsertAffiliateManager.getAffiliateExpiryTimestamp(this);
 
 </details>
 
-<details>
-<summary><h3>Prevent Affiliate Transfer</h3></summary>
+### Prevent Affiliate Transfer
 
 By default, clicking a new affiliate link will overwrite any existing attribution. Enable `preventAffiliateTransfer` to lock the first affiliate:
 
@@ -950,7 +949,7 @@ InsertAffiliateManager.init(
 2. User later clicks Affiliate B's link → still attributed to Affiliate A (blocked)
 3. Affiliate A gets credit for any purchases
 
-</details>
+Learn more: [Prevent Affiliate Transfer Documentation](https://docs.insertaffiliate.com/prevent-affiliate-transfer)
 
 
 ---
