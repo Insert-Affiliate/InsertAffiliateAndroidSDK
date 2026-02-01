@@ -131,12 +131,23 @@ InsertAffiliateManager.init(
     false,                   // Insert Links disabled (if using 3rd party like Branch)
     604800                   // Attribution expires after 7 days
 );
+
+// With affiliate transfer prevention (prevents new affiliates from overwriting existing)
+InsertAffiliateManager.init(
+    this,
+    "YOUR_COMPANY_CODE",
+    true,                    // Enable verbose logging
+    false,                   // Insert Links disabled
+    604800,                  // Attribution expires after 7 days
+    true                     // Prevent affiliate transfer
+);
 ```
 
 **Parameters:**
 - `enableVerboseLogging`: Shows detailed logs for debugging (disable in production)
 - `enableInsertLinks`: Set to `true` if using Insert Links, `false` if using Branch/AppsFlyer
 - `affiliateAttributionActiveTimeSeconds`: How long affiliate attribution lasts (0 = never expires)
+- `preventAffiliateTransfer`: When `true`, the first affiliate is locked and new affiliate links won't overwrite existing attribution
 
 </details>
 
@@ -170,20 +181,66 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Initialize Insert Affiliate SDK
-        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true);
+        // Initialize Insert Affiliate SDK with 7-day attribution timeout
+        InsertAffiliateManager.init(this, "YOUR_COMPANY_CODE", true, false, 604800);
 
-        // Pass affiliate identifier to RevenueCat
-        String affiliateId = InsertAffiliateManager.returnInsertAffiliateIdentifier(this);
-        if (affiliateId != null) {
-            Map<String, String> attributes = new HashMap<>();
-            attributes.put("insert_affiliate", affiliateId);
-            Purchases.getSharedInstance().setAttributes(attributes);
-            Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
-                error -> { /* handle error */ },
-                offerings -> { /* offerings synced */ }
-            );
+        // Set up callback for affiliate identifier changes (now includes offer code)
+        InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            this,
+            (identifier, offerCode) -> {
+                if (identifier != null) {
+                    updateRevenueCatAttribution(identifier, offerCode);
+                }
+            }
+        );
+    }
+
+    private void updateRevenueCatAttribution(String affiliateId, String offerCode) {
+        // OPTIONAL: Prevent attribution for existing subscribers
+        // Uncomment to ensure affiliates only earn from users they actually brought:
+        /*
+        Purchases.getSharedInstance().getCustomerInfo(new ReceiveCustomerInfoCallback() {
+            @Override
+            public void onReceived(@NonNull CustomerInfo customerInfo) {
+                if (!customerInfo.getEntitlements().getActive().isEmpty()) {
+                    // User already subscribed, don't attribute to this affiliate
+                    return;
+                }
+                // Continue with attribution below...
+            }
+            @Override
+            public void onError(@NonNull PurchasesError error) { }
+        });
+        */
+
+        // Set main attributes
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("insert_affiliate", affiliateId);
+
+        // Add expiry timestamp for RevenueCat targeting rules
+        Long expiryTimestamp = InsertAffiliateManager.getAffiliateExpiryTimestamp(this);
+        if (expiryTimestamp != null) {
+            attributes.put("insert_timedout", String.valueOf(expiryTimestamp));
         }
+
+        Purchases.getSharedInstance().setAttributes(attributes);
+
+        // IMPORTANT: Set affiliateOfferCode in a SEPARATE call for targeting to work reliably
+        if (offerCode != null && !offerCode.isEmpty()) {
+            Map<String, String> offerCodeAttr = new HashMap<>();
+            offerCodeAttr.put("affiliateOfferCode", offerCode);
+            Purchases.getSharedInstance().setAttributes(offerCodeAttr);
+        }
+
+        // Sync attributes AND reload offerings for targeting to work
+        Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
+            error -> Log.e("MainActivity", "Sync error: " + error.getMessage()),
+            offerings -> {
+                // Offerings now reflect targeting based on affiliateOfferCode
+                Log.d("MainActivity", "RevenueCat synced, current offering: " +
+                    (offerings.getCurrent() != null ? offerings.getCurrent().getIdentifier() : "null"));
+            }
+        );
     }
 }
 ```
@@ -291,9 +348,10 @@ public class MainActivity extends AppCompatActivity {
 
         // Set up callback for affiliate identifier changes - update Adapty when identifier changes
         InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
+            this,
             new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
                 @Override
-                public void onIdentifierChanged(String identifier) {
+                public void onIdentifierChanged(String identifier, String offerCode) {
                     if (identifier != null && !identifier.isEmpty()) {
                         updateAdaptyProfile(identifier);
                     }
@@ -494,20 +552,33 @@ public class MainActivity extends AppCompatActivity {
             true   // Enable Insert Links
         );
 
-        // Set up callback for affiliate identifier changes
+        // Set up callback for affiliate identifier changes (now includes offer code)
         InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
-            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
-                @Override
-                public void onIdentifierChanged(String identifier) {
-                    if (identifier != null) {
-                        Map<String, String> attributes = new HashMap<>();
-                        attributes.put("insert_affiliate", identifier);
-                        Purchases.getSharedInstance().setAttributes(attributes);
-                        Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
-                            error -> { /* handle error */ },
-                            offerings -> { /* offerings synced */ }
-                        );
+            this,
+            (identifier, offerCode) -> {
+                if (identifier != null) {
+                    // OPTIONAL: Check if user already has active subscription
+                    // Uncomment to prevent affiliates earning from existing subscribers:
+                    // Purchases.getSharedInstance().getCustomerInfo(info -> {
+                    //     if (!info.getEntitlements().getActive().isEmpty()) return;
+                    //     // Continue with attribution...
+                    // });
+
+                    Map<String, String> attributes = new HashMap<>();
+                    attributes.put("insert_affiliate", identifier);
+                    Purchases.getSharedInstance().setAttributes(attributes);
+
+                    // Set affiliateOfferCode separately for targeting
+                    if (offerCode != null && !offerCode.isEmpty()) {
+                        Map<String, String> offerCodeAttr = new HashMap<>();
+                        offerCodeAttr.put("affiliateOfferCode", offerCode);
+                        Purchases.getSharedInstance().setAttributes(offerCodeAttr);
                     }
+
+                    Purchases.getSharedInstance().syncAttributesAndOfferingsIfNeededWith(
+                        error -> { /* handle error */ },
+                        offerings -> { /* offerings synced with targeting */ }
+                    );
                 }
             }
         );
@@ -547,14 +618,12 @@ public class MainActivity extends AppCompatActivity {
             true   // Enable Insert Links
         );
 
-        // Set up callback for affiliate identifier changes
+        // Set up callback for affiliate identifier changes (now includes offer code)
         InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
-            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
-                @Override
-                public void onIdentifierChanged(String identifier) {
-                    if (identifier != null && !identifier.isEmpty()) {
-                        updateAdaptyProfile(identifier);
-                    }
+            this,
+            (identifier, offerCode) -> {
+                if (identifier != null && !identifier.isEmpty()) {
+                    updateAdaptyProfile(identifier);
                 }
             }
         );
@@ -605,14 +674,12 @@ public class MainActivity extends AppCompatActivity {
             true   // Enable Insert Links
         );
 
-        // Set up callback for affiliate identifier changes
+        // Set up callback for affiliate identifier changes (now includes offer code)
         InsertAffiliateManager.setInsertAffiliateIdentifierChangeCallback(
-            new InsertAffiliateManager.InsertAffiliateIdentifierChangeCallback() {
-                @Override
-                public void onIdentifierChanged(String identifier) {
-                    Log.i("InsertAffiliate", "Affiliate identifier stored: " + identifier);
-                    // Identifier is stored automatically for direct store integration
-                }
+            this,
+            (identifier, offerCode) -> {
+                Log.i("InsertAffiliate", "Affiliate identifier stored: " + identifier + ", offerCode: " + offerCode);
+                // Identifier is stored automatically for direct store integration
             }
         );
 
@@ -846,6 +913,43 @@ long storedDate = InsertAffiliateManager.getAffiliateStoredDate(this);
 // Returns seconds since epoch
 ```
 
+**Get Expiry Timestamp (for RevenueCat targeting):**
+
+```java
+Long expiryTimestamp = InsertAffiliateManager.getAffiliateExpiryTimestamp(this);
+// Returns Unix timestamp in milliseconds when attribution expires
+// Returns null if no timeout configured or no affiliate exists
+```
+
+</details>
+
+<details>
+<summary><h3>Prevent Affiliate Transfer</h3></summary>
+
+By default, clicking a new affiliate link will overwrite any existing attribution. Enable `preventAffiliateTransfer` to lock the first affiliate:
+
+```java
+InsertAffiliateManager.init(
+    this,
+    "YOUR_COMPANY_CODE",
+    true,      // verbose logging
+    false,     // insert links
+    604800,    // 7-day timeout
+    true       // prevent affiliate transfer
+);
+```
+
+**How it works:**
+- When enabled, once a user is attributed to an affiliate, that attribution is locked
+- New affiliate links will not overwrite the existing attribution
+- The callback still fires with the existing affiliate data (not the new one)
+- Useful for preventing "affiliate stealing" where users click competitor links
+
+**Example scenario:**
+1. User clicks Affiliate A's link → attributed to Affiliate A
+2. User later clicks Affiliate B's link → still attributed to Affiliate A (blocked)
+3. Affiliate A gets credit for any purchases
+
 </details>
 
 
@@ -874,6 +978,17 @@ long storedDate = InsertAffiliateManager.getAffiliateStoredDate(this);
   ```bash
   adb shell am start -a android.intent.action.VIEW -d "YOUR_DEEP_LINK_URL"
   ```
+
+### RevenueCat Targeting Issues
+
+**Problem:** RevenueCat not returning the expected targeted offering
+- **Cause:** `affiliateOfferCode` attribute not being saved properly
+- **Solution:**
+  - Set `affiliateOfferCode` in a **separate** `setAttributes()` call (see RevenueCat code example above)
+  - Always call `syncAttributesAndOfferingsIfNeeded()` after setting attributes
+  - Fetch offerings **after** sync completes, not before
+  - Verify the targeting rule exists in RevenueCat dashboard
+  - Check RevenueCat customer profile to confirm `affiliateOfferCode` attribute is saved
 
 ### Purchase Tracking Issues
 

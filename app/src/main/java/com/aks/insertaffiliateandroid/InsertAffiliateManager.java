@@ -44,6 +44,7 @@ public class InsertAffiliateManager {
     private static boolean verboseLogging = false;
     private static boolean insertLinks = false;
     private static long affiliateAttributionActiveTime = 0; // Time in seconds for affiliate attribution to remain active (0 = no timeout)
+    private static boolean preventAffiliateTransfer = false; // When true, prevents new affiliates from overwriting existing attribution
 
     // Source types for affiliate association tracking
     public enum AffiliateAssociationSource {
@@ -103,9 +104,21 @@ public class InsertAffiliateManager {
         boolean enableInsertLinks, // When set to true, the SDK will add trigger additional setup for deep links and universal links. If you are using an external provider for deep links, ensure this is set to false.
         long affiliateAttributionActiveTimeSeconds // Time in seconds for affiliate attribution to remain active (0 = no timeout)
     ){
+        init(activity, code, enableVerboseLogging, enableInsertLinks, affiliateAttributionActiveTimeSeconds, false);
+    }
+
+    public static void init(
+        Activity activity,
+        String code,
+        boolean enableVerboseLogging,
+        boolean enableInsertLinks, // When set to true, the SDK will add trigger additional setup for deep links and universal links. If you are using an external provider for deep links, ensure this is set to false.
+        long affiliateAttributionActiveTimeSeconds, // Time in seconds for affiliate attribution to remain active (0 = no timeout)
+        boolean preventAffiliateTransferParam // When true, prevents new affiliates from overwriting existing attribution
+    ){
         verboseLogging = enableVerboseLogging;
         insertLinks = enableInsertLinks;
         affiliateAttributionActiveTime = affiliateAttributionActiveTimeSeconds;
+        preventAffiliateTransfer = preventAffiliateTransferParam;
 
         if (verboseLogging) {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Starting SDK initialization...");
@@ -113,6 +126,7 @@ public class InsertAffiliateManager {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Verbose logging enabled");
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Insert links enabled: " + insertLinks);
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Affiliate attribution timeout: " + (affiliateAttributionActiveTime > 0 ? affiliateAttributionActiveTime + " seconds" : "disabled"));
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Prevent affiliate transfer: " + preventAffiliateTransfer);
         }
         
         if (companyCode != null || code == null || code.isEmpty()) {
@@ -278,13 +292,45 @@ public class InsertAffiliateManager {
     }
 
     /**
-     * Sets a callback to be notified whenever the affiliate identifier changes
+     * Sets a callback to be notified whenever the affiliate identifier changes.
+     * The callback is also immediately invoked with current values if an affiliate exists.
+     * @param activity The activity context (required to check existing affiliate)
      * @param callback The callback to be invoked when the identifier changes
      */
+    public static void setInsertAffiliateIdentifierChangeCallback(Activity activity, InsertAffiliateIdentifierChangeCallback callback) {
+        identifierChangeCallback = callback;
+        if (verboseLogging) {
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Affiliate identifier change callback " +
+                  (callback != null ? "set" : "removed"));
+        }
+
+        // Fire callback immediately with existing values if affiliate exists
+        if (callback != null && activity != null) {
+            String existingIdentifier = returnInsertAffiliateIdentifier(activity, true); // Use ignoreTimeout to get raw identifier
+            if (existingIdentifier != null && !existingIdentifier.isEmpty()) {
+                String existingOfferCode = getStoredOfferCode(activity);
+                verboseLog("Firing callback immediately with existing affiliate: " + existingIdentifier + ", offerCode: " + existingOfferCode);
+                callbackExecutor.execute(() -> {
+                    try {
+                        callback.onIdentifierChanged(existingIdentifier, existingOfferCode);
+                    } catch (Exception e) {
+                        Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in immediate callback invocation: " + e.getMessage());
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Sets a callback to be notified whenever the affiliate identifier changes
+     * @param callback The callback to be invoked when the identifier changes
+     * @deprecated Use setInsertAffiliateIdentifierChangeCallback(Activity, InsertAffiliateIdentifierChangeCallback) instead
+     */
+    @Deprecated
     public static void setInsertAffiliateIdentifierChangeCallback(InsertAffiliateIdentifierChangeCallback callback) {
         identifierChangeCallback = callback;
         if (verboseLogging) {
-            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Affiliate identifier change callback " + 
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] [VERBOSE] Affiliate identifier change callback " +
                   (callback != null ? "set" : "removed"));
         }
     }
@@ -581,6 +627,15 @@ public class InsertAffiliateManager {
             return;
         }
 
+        // Check if transfer prevention is enabled and we have an existing affiliate
+        if (preventAffiliateTransfer && existingLink != null && !existingLink.isEmpty()) {
+            verboseLog("Transfer blocked: preventAffiliateTransfer is enabled. Existing affiliate: " + existingLink + ", attempted new affiliate: " + referringLink);
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate transfer blocked - existing attribution preserved: " + existingLink);
+            // Still notify callback with the existing affiliate (not the new one)
+            notifyIdentifierChange(activity);
+            return;
+        }
+
         SharedPreferences.Editor editor = sharedPreferences
                 .edit();
         editor.putString("referring_link", referringLink);
@@ -592,9 +647,8 @@ public class InsertAffiliateManager {
 
         editor.commit();
 
-        // Notify callback of identifier change
-        notifyIdentifierChange(activity);
-
+        // Note: notifyIdentifierChange is called from retrieveAndStoreOfferCode after offer code is fetched
+        // This ensures callback receives both identifier AND offer code together
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] Attempting to fetch offer code for stored affiliate identifier...");
         retrieveAndStoreOfferCode(activity, referringLink);
 
@@ -948,18 +1002,19 @@ public class InsertAffiliateManager {
 
     /**
      * Retrieves and stores an offer code for the given affiliate link
+     * Also notifies the callback with updated identifier and offer code
      * @param activity The activity context
      * @param affiliateLink The affiliate link to fetch the offer code for
      */
     public static void retrieveAndStoreOfferCode(Activity activity, String affiliateLink) {
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] Attempting to retrieve and store offer code for: " + affiliateLink);
-        
+
         fetchOfferCode(affiliateLink, new OfferCodeCallback() {
             @Override
             public void onOfferCodeReceived(String offerCode) {
                 SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
-                
+
                 if (offerCode != null && !offerCode.isEmpty()) {
                     // Store the offer code
                     editor.putString("offer_code", offerCode);
@@ -970,8 +1025,11 @@ public class InsertAffiliateManager {
                     // Clear stored offer code if none found
                     editor.putString("offer_code", "");
                 }
-                
+
                 editor.apply();
+
+                // Notify callback with both identifier and offer code now that offer code is available
+                notifyIdentifierChange(activity);
             }
         });
     }
@@ -1070,17 +1128,42 @@ public class InsertAffiliateManager {
     }
 
     /**
-     * Safely notifies the affiliate identifier change callback
-     * @param activity The activity context to get the current identifier
+     * Gets the Unix timestamp (in milliseconds) when the affiliate attribution will expire
+     * @param activity The activity context
+     * @return The expiry timestamp in milliseconds, or null if no timeout is configured or no affiliate exists
+     */
+    public static Long getAffiliateExpiryTimestamp(Activity activity) {
+        // If no timeout is configured, return null
+        if (affiliateAttributionActiveTime <= 0) {
+            verboseLog("No timeout configured, returning null for expiry timestamp");
+            return null;
+        }
+
+        long storedDateSeconds = getAffiliateStoredDate(activity);
+        if (storedDateSeconds == 0) {
+            verboseLog("No stored date found, returning null for expiry timestamp");
+            return null;
+        }
+
+        // Convert stored date to milliseconds and add timeout (also converted to milliseconds)
+        long expiryTimestamp = (storedDateSeconds * 1000) + (affiliateAttributionActiveTime * 1000);
+        verboseLog("Calculated expiry timestamp: " + expiryTimestamp + " (storedDate: " + storedDateSeconds + "s, timeout: " + affiliateAttributionActiveTime + "s)");
+        return expiryTimestamp;
+    }
+
+    /**
+     * Safely notifies the affiliate identifier change callback with both identifier and offer code
+     * @param activity The activity context to get the current identifier and offer code
      */
     private static void notifyIdentifierChange(Activity activity) {
         InsertAffiliateIdentifierChangeCallback callback = identifierChangeCallback;
         if (callback != null) {
             String identifier = returnInsertAffiliateIdentifier(activity);
+            String offerCode = getStoredOfferCode(activity);
             callbackExecutor.execute(() -> {
                 try {
-                    callback.onIdentifierChanged(identifier);
-                    verboseLog("Notified callback of identifier change: " + identifier);
+                    callback.onIdentifierChanged(identifier, offerCode);
+                    verboseLog("Notified callback of identifier change: " + identifier + ", offerCode: " + offerCode);
                 } catch (Exception e) {
                     Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in identifier change callback: " + e.getMessage());
                 }
@@ -1128,7 +1211,7 @@ public class InsertAffiliateManager {
      * Callback interface for affiliate identifier change notifications
      */
     public interface InsertAffiliateIdentifierChangeCallback {
-        void onIdentifierChanged(String identifier);
+        void onIdentifierChanged(String identifier, String offerCode);
     }
 
     /**
