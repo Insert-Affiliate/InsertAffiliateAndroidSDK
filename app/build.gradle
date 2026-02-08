@@ -41,7 +41,7 @@ afterEvaluate {
                 from components.release
                 groupId = 'com.aks.insertaffiliateandroid'
                 artifactId = 'InsertAffiliateAndroidSDK'
-                version = '1.2.0'
+                version = '1.5.0'
             }
         }
     }
