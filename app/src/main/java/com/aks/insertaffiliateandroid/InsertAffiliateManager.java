@@ -373,7 +373,7 @@ public class InsertAffiliateManager {
         }
 
         // Validate against API
-        getAffiliateDetails(capitalisedShortCode, new AffiliateDetailsCallback() {
+        getAffiliateDetails(capitalisedShortCode, true, new AffiliateDetailsCallback() {
             @Override
             public void onAffiliateDetailsReceived(AffiliateDetails details) {
                 if (details != null) {
@@ -1261,6 +1261,10 @@ public class InsertAffiliateManager {
      * @param callback Callback that receives the affiliate details (null if not found or error)
      */
     public static void getAffiliateDetails(String shortCode, AffiliateDetailsCallback callback) {
+        getAffiliateDetails(shortCode, false, callback);
+    }
+
+    public static void getAffiliateDetails(String shortCode, boolean trackUsage, AffiliateDetailsCallback callback) {
         if (companyCode == null || companyCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot get affiliate details: no company code available");
             callback.onAffiliateDetailsReceived(null);
@@ -1296,6 +1300,9 @@ public class InsertAffiliateManager {
         try {
             payload.put("companyId", companyCode);
             payload.put("affiliateCode", capitalisedShortCode);
+            if (trackUsage) {
+                payload.put("trackUsage", true);
+            }
         } catch (Exception e) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to build JSON payload: " + e.getMessage());
             callback.onAffiliateDetailsReceived(null);
