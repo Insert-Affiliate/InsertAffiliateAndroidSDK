@@ -745,9 +745,22 @@ If you have a custom domain (e.g. `links.yourcompany.com`), add another intent f
 </intent-filter>
 ```
 
-**Step 2: Handle App Links in your Activity**
+**Step 2: Set launch mode on your Activity**
 
-No additional code changes needed — `handleInsertLink()` already handles both custom URL schemes and `https://` App Links automatically.
+Add `android:launchMode="singleTop"` to your main activity to prevent it being recreated when an App Link is tapped while the app is already running:
+
+```xml
+<activity
+    android:name=".MainActivity"
+    android:launchMode="singleTop"
+    ...>
+```
+
+This ensures `onNewIntent()` is called instead of creating a new activity instance. Without this, the activity will "flash" and reload, potentially losing the deep link data.
+
+**Step 3: Handle App Links in your Activity**
+
+No additional code changes needed — `handleInsertLink()` already handles both custom URL schemes and `https://` App Links automatically. Just make sure you call it from both `onCreate()` and `onNewIntent()`.
 
 **Testing App Links:**
 
