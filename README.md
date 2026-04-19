@@ -705,6 +705,72 @@ I/InsertAffiliate TAG: [Insert Affiliate] Short link received: AFFILIATE1
 I/InsertAffiliate TAG: [Insert Affiliate] Storing affiliate identifier: AFFILIATE1
 ```
 
+#### Android App Links (Optional, Recommended)
+
+Android App Links provide a better user experience than custom URL schemes. When a user taps an Insert Link and already has your app installed, Android opens the app directly — without loading the browser or showing a disambiguation dialog.
+
+**Prerequisites:**
+- Enter your **Android Bundle Identifier** (package name) and **SHA-256 Certificate Fingerprints** in the Insert Affiliate dashboard settings
+
+**To find your SHA-256 fingerprint:**
+```bash
+# For debug builds
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android | grep SHA256
+
+# For release builds (use your keystore)
+keytool -list -v -keystore your-release-key.keystore -alias your-alias | grep SHA256
+```
+
+**Step 1: Add intent filter to AndroidManifest.xml**
+
+Add this inside your main `<activity>` tag:
+
+```xml
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="https" android:host="insertaffiliate.link" />
+</intent-filter>
+```
+
+If you have a custom domain (e.g. `links.yourcompany.com`), add another intent filter:
+
+```xml
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="https" android:host="links.yourcompany.com" />
+</intent-filter>
+```
+
+**Step 2: Set launch mode on your Activity**
+
+Add `android:launchMode="singleTop"` to your main activity to prevent it being recreated when an App Link is tapped while the app is already running:
+
+```xml
+<activity
+    android:name=".MainActivity"
+    android:launchMode="singleTop"
+    ...>
+```
+
+This ensures `onNewIntent()` is called instead of creating a new activity instance. Without this, the activity will "flash" and reload, potentially losing the deep link data.
+
+**Step 3: Handle App Links in your Activity**
+
+No additional code changes needed — `handleInsertLink()` already handles both custom URL schemes and `https://` App Links automatically. Just make sure you call it from both `onCreate()` and `onNewIntent()`.
+
+**Testing App Links:**
+
+```bash
+# Via ADB
+adb shell am start -a android.intent.action.VIEW -d "https://insertaffiliate.link/YOUR_COMPANY_CODE/TEST_SHORT_CODE"
+```
+
+> **Note:** App Links verification requires the app to be signed with the certificate matching the fingerprint in the dashboard. Debug builds use a different certificate than release builds — add both fingerprints if testing in debug mode.
+
 ✅ **Insert Links setup complete!** Skip to [Verify Your Integration](#-verify-your-integration)
 
 </details>

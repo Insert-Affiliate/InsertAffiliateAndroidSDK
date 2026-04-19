@@ -25,6 +25,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -51,7 +52,8 @@ public class InsertAffiliateManager {
         DEEP_LINK_ANDROID("deep_link_android"),      // Android deep link with ?insertAffiliate= param
         INSTALL_REFERRER("install_referrer"),        // Android Play Store install referrer
         SHORT_CODE_MANUAL("short_code_manual"),      // Developer called setShortCode()
-        REFERRING_LINK("referring_link");            // Developer called setInsertAffiliateIdentifier()
+        REFERRING_LINK("referring_link"),            // Developer called setInsertAffiliateIdentifier()
+        APP_LINK("app_link");                       // Android App Link (https://insertaffiliate.link/companycode/shortcode)
 
         private final String value;
 
@@ -1179,7 +1181,7 @@ public class InsertAffiliateManager {
     }
 
     /**
-     * Handles deep links containing insertAffiliate parameter
+     * Handles deep links containing insertAffiliate parameter and App Links (https:// URLs)
      * This method should be called from Activity.onCreate() and Activity.onNewIntent()
      * @param activity The activity context
      * @param intent The intent containing the deep link data
@@ -1189,13 +1191,20 @@ public class InsertAffiliateManager {
             verboseLog("No intent or URI data found in handleInsertLink");
             return;
         }
-        
+
         Uri uri = intent.getData();
         verboseLog("InsertAffiliate: Processing Insert Link URI: " + uri.toString());
-        
-        // Look for insertAffiliate parameter in the URI
+
+        // Handle App Links (https:// URLs from insertaffiliate.link or custom domains)
+        String scheme = uri.getScheme();
+        if ("https".equals(scheme) || "http".equals(scheme)) {
+            handleAppLink(activity, uri);
+            return;
+        }
+
+        // Handle custom URL scheme deep links with insertAffiliate query parameter
         String insertAffiliate = uri.getQueryParameter("insertAffiliate");
-        
+
         if (insertAffiliate != null && !insertAffiliate.isEmpty()) {
             verboseLog("Found insertAffiliate parameter: " + insertAffiliate);
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] Deep link detected with insertAffiliate parameter: " + insertAffiliate);
@@ -1205,6 +1214,45 @@ public class InsertAffiliateManager {
         } else {
             verboseLog("No insertAffiliate parameter found in deep link");
         }
+    }
+
+    /**
+     * Handles Android App Links (https:// URLs)
+     * Supports formats:
+     *   - https://insertaffiliate.link/companyCode/shortCode
+     *   - https://insertaffiliate.link/V1/companyCode/shortCode (legacy)
+     *   - https://customdomain.com/companyCode/shortCode
+     * @param activity The activity context
+     * @param uri The App Link URI
+     */
+    private static void handleAppLink(Activity activity, Uri uri) {
+        List<String> pathSegments = uri.getPathSegments();
+
+        String urlCompanyCode;
+        String shortCode;
+
+        if (pathSegments.size() >= 3 && "V1".equals(pathSegments.get(0))) {
+            // Legacy format: /V1/companyCode/shortCode
+            urlCompanyCode = pathSegments.get(1);
+            shortCode = pathSegments.get(2);
+        } else if (pathSegments.size() >= 2) {
+            // Current format: /companyCode/shortCode
+            urlCompanyCode = pathSegments.get(0);
+            shortCode = pathSegments.get(1);
+        } else {
+            verboseLog("Invalid App Link format: " + uri.toString());
+            return;
+        }
+
+        verboseLog("App Link detected - Company: " + urlCompanyCode + ", Short code: " + shortCode);
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] App Link detected - Company: " + urlCompanyCode + ", Short code: " + shortCode);
+
+        // Validate company code matches initialized one
+        if (companyCode != null && !urlCompanyCode.equalsIgnoreCase(companyCode)) {
+            verboseLog("Warning: URL company code (" + urlCompanyCode + ") doesn't match initialized company code (" + companyCode + ")");
+        }
+
+        storeInsertAffiliateReferringLink(activity, shortCode.toUpperCase(), AffiliateAssociationSource.APP_LINK);
     }
 
     /**
