@@ -351,6 +351,21 @@ public class InsertAffiliateManager {
      * @param callback Callback that receives validation result (true if valid, false if invalid)
      */
     public static void setShortCode(Activity activity, String shortCode, ShortCodeValidationCallback callback) {
+        setShortCode(activity, shortCode, callback, null);
+    }
+
+    /**
+     * Validates a short code against the API and stores it if valid.
+     * @param activity The activity context
+     * @param shortCode The short code to validate and set
+     * @param callback Callback that receives validation result (true if valid, false if invalid)
+     * @param onLookupFailed called when the check against the backend couldn't be completed
+     *   (outage, timeout, malformed response) — not when the code is simply invalid, and not
+     *   when the SDK itself isn't configured with a company code (that's a caller bug, not
+     *   retryable). Use it to offer a retry instead of proceeding unattributed. Fires on a
+     *   background thread; dispatch to the main thread yourself before touching UI.
+     */
+    public static void setShortCode(Activity activity, String shortCode, ShortCodeValidationCallback callback, Runnable onLookupFailed) {
         if (shortCode == null || shortCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error: Short code cannot be null or empty.");
             if (callback != null) callback.onValidationComplete(false);
@@ -375,18 +390,21 @@ public class InsertAffiliateManager {
         }
 
         // Validate against API
-        getAffiliateDetails(capitalisedShortCode, true, new AffiliateDetailsCallback() {
+        getAffiliateLookupResult(capitalisedShortCode, true, new AffiliateLookupCallback() {
             @Override
-            public void onAffiliateDetailsReceived(AffiliateDetails details) {
-                if (details != null) {
+            public void onLookupComplete(AffiliateLookupResult result) {
+                if (result.getStatus() == AffiliateLookupStatus.FOUND) {
                     // Valid short code, store it
                     storeInsertAffiliateReferringLink(activity, capitalisedShortCode, AffiliateAssociationSource.SHORT_CODE_MANUAL);
                     Log.i("InsertAffiliate TAG", "[Insert Affiliate] Short code " + capitalisedShortCode + " validated and stored successfully.");
                     if (callback != null) callback.onValidationComplete(true);
                 } else {
-                    // Invalid short code
+                    // Invalid short code, or the lookup itself couldn't be completed
                     Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code " + capitalisedShortCode + " does not exist. Not storing.");
                     if (callback != null) callback.onValidationComplete(false);
+                    if (result.getStatus() == AffiliateLookupStatus.LOOKUP_FAILED && onLookupFailed != null) {
+                        onLookupFailed.run();
+                    }
                 }
             }
         });
@@ -1304,6 +1322,35 @@ public class InsertAffiliateManager {
     }
 
     /**
+     * LOOKUP_FAILED (outage, timeout, malformed response) may be worth retrying.
+     * NOT_CONFIGURED (no company code set) never will be — it's always a bug in the calling
+     * app, not the code or backend.
+     */
+    public enum AffiliateLookupStatus { FOUND, NOT_FOUND, LOOKUP_FAILED, NOT_CONFIGURED }
+
+    public static class AffiliateLookupResult {
+        private final AffiliateLookupStatus status;
+        private final AffiliateDetails details; // null unless status == FOUND
+
+        public AffiliateLookupResult(AffiliateLookupStatus status, AffiliateDetails details) {
+            this.status = status;
+            this.details = details;
+        }
+
+        public AffiliateLookupStatus getStatus() {
+            return status;
+        }
+
+        public AffiliateDetails getDetails() {
+            return details;
+        }
+    }
+
+    public interface AffiliateLookupCallback {
+        void onLookupComplete(AffiliateLookupResult result);
+    }
+
+    /**
      * Fetches affiliate details for a given short code without setting it
      * @param shortCode The short code to fetch details for
      * @param callback Callback that receives the affiliate details (null if not found or error)
@@ -1312,16 +1359,34 @@ public class InsertAffiliateManager {
         getAffiliateDetails(shortCode, false, callback);
     }
 
+    /**
+     * Kept for backward compatibility: collapses NOT_FOUND and LOOKUP_FAILED into the same null
+     * result, exactly as before. Use getAffiliateLookupResult if you need to tell an invalid
+     * code apart from a backend outage.
+     */
     public static void getAffiliateDetails(String shortCode, boolean trackUsage, AffiliateDetailsCallback callback) {
+        getAffiliateLookupResult(shortCode, trackUsage, result -> callback.onAffiliateDetailsReceived(result.getDetails()));
+    }
+
+    /**
+     * Fetches affiliate details for a given short code without setting it, distinguishing "no
+     * affiliate matches this code" from "couldn't check" (backend outage, timeout, missing
+     * company code).
+     * @param shortCode The short code to fetch details for
+     * @param trackUsage whether to record this lookup against the affiliate's usage count
+     * @param callback Callback that receives an AffiliateLookupResult with a status of FOUND,
+     *   NOT_FOUND, LOOKUP_FAILED, or NOT_CONFIGURED
+     */
+    public static void getAffiliateLookupResult(String shortCode, boolean trackUsage, AffiliateLookupCallback callback) {
         if (companyCode == null || companyCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot get affiliate details: no company code available");
-            callback.onAffiliateDetailsReceived(null);
+            callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.NOT_CONFIGURED, null));
             return;
         }
 
         if (shortCode == null || shortCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code cannot be null or empty");
-            callback.onAffiliateDetailsReceived(null);
+            callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.NOT_FOUND, null));
             return;
         }
 
@@ -1331,13 +1396,13 @@ public class InsertAffiliateManager {
         // Validate short code format
         if (capitalisedShortCode.length() < 3 || capitalisedShortCode.length() > 25) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code must be between 3 and 25 characters long");
-            callback.onAffiliateDetailsReceived(null);
+            callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.NOT_FOUND, null));
             return;
         }
 
         if (!capitalisedShortCode.matches("^[a-zA-Z0-9]+$")) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Short code must contain only letters and numbers");
-            callback.onAffiliateDetailsReceived(null);
+            callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.NOT_FOUND, null));
             return;
         }
 
@@ -1353,7 +1418,7 @@ public class InsertAffiliateManager {
             }
         } catch (Exception e) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Failed to build JSON payload: " + e.getMessage());
-            callback.onAffiliateDetailsReceived(null);
+            callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.LOOKUP_FAILED, null));
             return;
         }
 
@@ -1367,6 +1432,9 @@ public class InsertAffiliateManager {
                 connection.setRequestMethod("POST");
                 connection.setRequestProperty("Content-Type", "application/json");
                 connection.setDoOutput(true);
+                // Without this, a hung connection blocks indefinitely instead of failing.
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
 
                 // Write JSON payload
                 byte[] outputBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
@@ -1388,9 +1456,19 @@ public class InsertAffiliateManager {
                     JSONObject jsonResponse = new JSONObject(response.toString());
                     verboseLog("Affiliate details response: " + jsonResponse.toString());
 
-                    // Check if affiliate exists
-                    boolean exists = jsonResponse.optBoolean("exists", false);
-                    if (exists && jsonResponse.has("affiliate")) {
+                    // isNull() covers both a missing "exists" key and an explicit JSON null —
+                    // optBoolean() would otherwise silently default either to false (NOT_FOUND).
+                    if (jsonResponse.isNull("exists")) {
+                        Log.e("InsertAffiliate TAG", "[Insert Affiliate] Response missing or null 'exists' field for short code: " + capitalisedShortCode);
+                        callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.LOOKUP_FAILED, null));
+                    } else if (!jsonResponse.optBoolean("exists", false)) {
+                        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate not found for short code: " + capitalisedShortCode);
+                        callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.NOT_FOUND, null));
+                    } else if (!jsonResponse.has("affiliate")) {
+                        // Exists but the affiliate payload is missing — malformed, not a real not-found.
+                        Log.e("InsertAffiliate TAG", "[Insert Affiliate] Affiliate exists but response is missing affiliate details for short code: " + capitalisedShortCode);
+                        callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.LOOKUP_FAILED, null));
+                    } else {
                         JSONObject affiliate = jsonResponse.getJSONObject("affiliate");
                         String affiliateName = affiliate.optString("affiliateName", "");
                         String affiliateShortCode = affiliate.optString("affiliateShortCode", capitalisedShortCode);
@@ -1398,18 +1476,15 @@ public class InsertAffiliateManager {
 
                         AffiliateDetails details = new AffiliateDetails(affiliateName, affiliateShortCode, deeplinkUrl);
                         Log.i("InsertAffiliate TAG", "[Insert Affiliate] Successfully fetched affiliate details for: " + affiliateName);
-                        callback.onAffiliateDetailsReceived(details);
-                    } else {
-                        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Affiliate not found for short code: " + capitalisedShortCode);
-                        callback.onAffiliateDetailsReceived(null);
+                        callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.FOUND, details));
                     }
                 } else {
                     Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching affiliate details: HTTP " + responseCode);
-                    callback.onAffiliateDetailsReceived(null);
+                    callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.LOOKUP_FAILED, null));
                 }
             } catch (Exception e) {
                 Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching affiliate details: " + e.getMessage());
-                callback.onAffiliateDetailsReceived(null);
+                callback.onLookupComplete(new AffiliateLookupResult(AffiliateLookupStatus.LOOKUP_FAILED, null));
             } finally {
                 if (connection != null) {
                     connection.disconnect();
