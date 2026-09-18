@@ -989,6 +989,107 @@ Long expiryTimestamp = InsertAffiliateManager.getAffiliateExpiryTimestamp(this);
 
 </details>
 
+<details>
+<summary><h3>In-App Referrals (Refer a Friend)</h3></summary>
+
+Turn your own users into affiliates from inside your app, show them a ready-made "Refer a friend" screen, and read their referral stats so you can reward them.
+
+In-app referrers are normal affiliates: they get the same dashboard login, commission and payouts as any other affiliate, and they take a seat like any other affiliate.
+
+**Before you start:** switch on In-app referrals in your [Insert Affiliate dashboard](https://app.insertaffiliate.com) and choose what counts as a referral (install, a tracked event, or a purchase). Initialise the SDK with `InsertAffiliateManager.init(...)` as usual.
+
+**Drop-in screen (quickest):**
+
+```java
+InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
+    .setEmail(currentUser.getEmail())   // prefill, usually your logged-in user
+    .setName(currentUser.getName())
+    .setOnClose(() -> Log.i("MyApp", "Refer a friend closed")));
+```
+
+The screen handles everything itself:
+- **Not joined yet:** email and name fields (prefilled) and a "Get my link" button.
+- **Email already belongs to an affiliate** (for example after a reinstall or on a new phone): asks for the 6-digit code we email them, with "Send a new code".
+- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, and "Open my dashboard".
+
+Headline, reward text and colour come from your dashboard, so you can change the wording without an app release. You can override them in code:
+
+| Option | Description |
+|---|---|
+| `setEmail(String)` / `setName(String)` | Prefill the join form |
+| `setShareMessage(String)` | Text shared with the link. May use `{link}` and `{code}` placeholders |
+| `setPrimaryColor(int)` / `setPrimaryColor(String)` | Button colour. Order: this option, then your dashboard colour, then `#6A0DAD` |
+| `setHeadline(String)` / `setRewardText(String)` | Override the dashboard copy. Default headline: "Refer a friend" |
+| `setTypeface(Typeface)` / `setCornerRadius(float dp)` | Match your app's font and shape |
+| `setOnClose(Runnable)` | Called on the main thread when the screen closes |
+
+The screen is built with standard Android views, so it adds no dependencies and works with any app theme (light and dark).
+
+**Build your own UI:**
+
+All callbacks below run on a background thread (like `getAffiliateDetails`). Use `runOnUiThread` to update your UI.
+
+```java
+// 1. Make the user an affiliate (usually with your logged-in user's email)
+InsertAffiliateManager.createAffiliateForUser(email, name, result -> {
+    if (result.isSuccess()) {
+        // status "created": this device is now connected
+        String link = result.getAffiliate().getDeeplinkUrl();
+    } else if (result.isVerificationRequired()) {
+        // Email already belongs to an affiliate: we emailed them a 6-digit code.
+        // Ask for it, then call verifyAffiliateCode.
+    } else {
+        // result.getErrorCode(): PROGRAM_DISABLED, AFFILIATE_LIMIT_REACHED, INVALID_EMAIL,
+        // TOO_MANY_CODES, RATE_LIMITED, NETWORK_ERROR, SERVER_ERROR
+        Log.e("MyApp", result.getErrorMessage());
+    }
+});
+
+// 2. Only when verification was required
+InsertAffiliateManager.verifyAffiliateCode(email, "123456", name, result -> {
+    if (result.isSuccess()) {
+        // status "connected" (existing affiliate) or "created"
+    } else if ("INVALID_CODE".equals(result.getErrorCode())) {
+        // Wrong or expired code
+    }
+});
+
+// 3. Read their stats (null if this device is not connected)
+InsertAffiliateManager.getMyAffiliateDetails(details -> {
+    if (details != null) {
+        int referrals = details.getReferralCount();   // for your configured trigger
+        double earned = details.getTotalEarned();     // in details.getCurrency()
+        String code = details.getAffiliateShortCode();
+        String link = details.getDeeplinkUrl();
+        String dashboard = details.getDashboardUrl();
+    }
+});
+
+// 4. Open the system share sheet with their link
+InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}");
+```
+
+| Method | Description |
+|---|---|
+| `createAffiliateForUser(email, name, callback)` | Makes the user an affiliate and connects this device. Result status: `created`, `verificationRequired` or `error` |
+| `verifyAffiliateCode(email, code, name, callback)` | Finishes connecting with the emailed 6-digit code. Result status: `connected`, `created` or `error`. `name` is optional |
+| `getMyAffiliateDetails(callback)` | The user's code, link and stats (`referralCount`, `installCount`, `eventCount`, `purchaseCount`, `totalEarned`, `totalPaid`, `totalUnpaid`, `currency`, `dashboardUrl`). `null` when not connected |
+| `isUserAnAffiliate()` | `true` when this device is connected. Local check, no network |
+| `signOutAffiliate()` | Disconnects this device (call on app logout). Their affiliate account is untouched |
+| `getReferralProgramConfig(callback)` | Your dashboard settings: `enabled`, `companyName`, `referralTrigger`, `headline`, `rewardText`, `primaryColor` |
+| `shareReferralLink(activity, message)` | Opens the share sheet. `message` is optional |
+| `showReferAFriend(activity, options)` | Presents the drop-in screen. `options` is optional |
+
+**Share text:** with a web link the SDK shares `"<message> <link>"` (default message `"Try {your app name}:"`). For Short Code Only apps it shares `"Use my code {code} in {your app name}"`.
+
+**How the connection works:** when a user joins, the server gives this device a private token, stored in private `SharedPreferences` (one per company code). It only lets the device read the user's own stats. If the app is reinstalled, the user enters their email again and confirms with the emailed code; their affiliate account, earnings and dashboard are unchanged.
+
+**Rewarding referrers:** values shown on the device are for display only, because a modified device can fake what it shows. Grant anything valuable (credits, premium time) from your server, using the `referral.created` webhook or the Public API. `referralCount` only goes up, so you can compare it with what you have already rewarded and grant the difference.
+
+**Store rules:** the SDK uses the system share sheet only, needs no Contacts permission and never gates features behind sharing. Do not reward ratings or reviews. For free premium time, use Google Play promo codes or RevenueCat promotional entitlements.
+
+</details>
+
 ### Prevent Affiliate Transfer
 
 By default, clicking a new affiliate link will overwrite any existing attribution. Enable `preventAffiliateTransfer` to lock the first affiliate:
