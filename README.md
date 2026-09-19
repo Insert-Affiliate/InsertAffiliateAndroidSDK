@@ -1010,7 +1010,7 @@ InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
 The screen handles everything itself:
 - **Not joined yet:** email and name fields (prefilled) and a "Get my link" button.
 - **Email already belongs to an affiliate** (for example after a reinstall or on a new phone): asks for the 6-digit code we email them, with "Send a new code".
-- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, and "Open my dashboard".
+- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, "Free premium until {date}" while a referrer reward is active, and "Open my dashboard".
 
 Headline, reward text and colour come from your dashboard, so you can change the wording without an app release. You can override them in code:
 
@@ -1071,9 +1071,10 @@ InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}
 
 | Method | Description |
 |---|---|
-| `createAffiliateForUser(email, name, callback)` | Makes the user an affiliate and connects this device. Result status: `created`, `verificationRequired` or `error` |
-| `verifyAffiliateCode(email, code, name, callback)` | Finishes connecting with the emailed 6-digit code. Result status: `connected`, `created` or `error`. `name` is optional |
-| `getMyAffiliateDetails(callback)` | The user's code, link and stats (`referralCount`, `installCount`, `eventCount`, `purchaseCount`, `totalEarned`, `totalPaid`, `totalUnpaid`, `currency`, `dashboardUrl`). `null` when not connected |
+| `createAffiliateForUser(email, name, [options,] callback)` | Makes the user an affiliate and connects this device. Result status: `created`, `verificationRequired` or `error`. `options` (`ReferrerAccountOptions`) is optional |
+| `verifyAffiliateCode(email, code, name, [options,] callback)` | Finishes connecting with the emailed 6-digit code. Result status: `connected`, `created` or `error`. `name` and `options` are optional |
+| `setReferrerAccount(options, callback)` | Saves the user's RevenueCat / Adapty app user id or Google Play purchase token after they joined. Callback receives `true` when saved |
+| `getMyAffiliateDetails(callback)` | The user's code, link and stats (`referralCount`, `installCount`, `eventCount`, `purchaseCount`, `totalEarned`, `totalPaid`, `totalUnpaid`, `currency`, `dashboardUrl`, `rewardsGranted`, `premiumUntil`, `rewardCodes`). `null` when not connected |
 | `isUserAnAffiliate()` | `true` when this device is connected. Local check, no network |
 | `signOutAffiliate()` | Disconnects this device (call on app logout). Their affiliate account is untouched |
 | `getReferralProgramConfig(callback)` | Your dashboard settings: `enabled`, `companyName`, `referralTrigger`, `headline`, `rewardText`, `primaryColor` |
@@ -1081,6 +1082,34 @@ InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}
 | `showReferAFriend(activity, options)` | Presents the drop-in screen. `options` is optional |
 
 **Share text:** with a web link the SDK shares `"<message> <link>"` (default message `"Try {your app name}:"`). For Short Code Only apps it shares `"Use my code {code} in {your app name}"`.
+
+**Automatic referrer rewards:** if you switched on referrer rewards in your dashboard (RevenueCat, Adapty or Google Play), the server needs to know which account belongs to your user. Pass it when they join, or later with `setReferrerAccount` when they subscribe or log in after joining; the server then grants any rewards that were waiting. The SDK also sends this device's id (the one in the insert affiliate identifier) so a "friend" who is really the referrer isn't counted.
+
+```java
+ReferrerAccountOptions account = new ReferrerAccountOptions()
+    .setAppUserId(Purchases.getSharedInstance().getAppUserID())  // RevenueCat app user id, or Adapty customer user id
+    .setPlayPurchaseToken(purchase.getPurchaseToken());          // the user's own Google Play subscription token (optional)
+
+// When joining
+InsertAffiliateManager.createAffiliateForUser(email, name, account, result -> { /* ... */ });
+InsertAffiliateManager.verifyAffiliateCode(email, "123456", name, account, result -> { /* ... */ });
+
+// Or later, once the user has subscribed or logged in
+InsertAffiliateManager.setReferrerAccount(account, saved -> {
+    Log.i("MyApp", "Referrer account saved: " + saved);
+});
+
+// What they have been granted
+InsertAffiliateManager.getMyAffiliateDetails(details -> {
+    if (details != null) {
+        int rewards = details.getRewardsGranted();
+        Date premiumUntil = details.getPremiumUntilDate();  // null when none; getPremiumUntil() is the ISO string
+        List<MyAffiliateDetails.RewardCode> codes = details.getRewardCodes();  // App Store offer codes, newest first
+    }
+});
+```
+
+`getRewardCodes()` holds App Store one-time offer codes (`getCode()`, `getRedeemUrl()`, `getGrantedAt()`). They can only be redeemed on iOS, so the drop-in screen does not show them on Android.
 
 **How the connection works:** when a user joins, the server gives this device a private token, stored in private `SharedPreferences` (one per company code). It only lets the device read the user's own stats. If the app is reinstalled, the user enters their email again and confirms with the emailed code; their affiliate account, earnings and dashboard are unchanged.
 
