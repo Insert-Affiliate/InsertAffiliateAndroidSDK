@@ -1,6 +1,10 @@
 package com.aks.insertaffiliateandroid;
 
+import com.google.gson.JsonObject;
+
 import org.junit.Test;
+
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -216,5 +220,135 @@ public class InAppReferralsTest {
             assertFalse(message.contains("—"));
         }
         assertEquals("That code is wrong or has expired.", InAppReferrals.messageForError("INVALID_CODE"));
+    }
+
+    // MARK: Phase 2: rewards on /me
+
+    @Test
+    public void myAffiliateDetails_parsesRewards() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails(
+            "{\"affiliateName\":\"Jane\",\"rewardsGranted\":3,\"premiumUntil\":\"2026-10-19T12:00:00.000Z\"," +
+            "\"rewardCodes\":[{\"code\":\"NEWER\",\"redeemUrl\":\"https://apps.apple.com/redeem?ctx=offercodes&id=1&code=NEWER\",\"grantedAt\":\"2026-09-18T10:00:00.000Z\"}," +
+            "{\"code\":\"OLDER\",\"redeemUrl\":\"https://apps.apple.com/redeem?code=OLDER\",\"grantedAt\":\"2026-08-01T10:00:00.000Z\"}]}");
+
+        assertEquals(3, details.getRewardsGranted());
+        assertEquals("2026-10-19T12:00:00.000Z", details.getPremiumUntil());
+        assertEquals(1792411200000L, details.getPremiumUntilDate().getTime());
+
+        List<MyAffiliateDetails.RewardCode> codes = details.getRewardCodes();
+        assertEquals(2, codes.size());
+        assertEquals("NEWER", codes.get(0).getCode());
+        assertEquals("https://apps.apple.com/redeem?ctx=offercodes&id=1&code=NEWER", codes.get(0).getRedeemUrl());
+        assertEquals("2026-09-18T10:00:00.000Z", codes.get(0).getGrantedAt());
+        assertEquals("OLDER", codes.get(1).getCode());
+    }
+
+    @Test
+    public void myAffiliateDetails_rewardsDefaultWhenMissing() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails("{\"affiliateName\":\"Jane\"}");
+
+        assertEquals(0, details.getRewardsGranted());
+        assertNull(details.getPremiumUntil());
+        assertNull(details.getPremiumUntilDate());
+        assertNotNull(details.getRewardCodes());
+        assertTrue(details.getRewardCodes().isEmpty());
+    }
+
+    @Test
+    public void myAffiliateDetails_rewardsAreLenient() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails(
+            "{\"rewardsGranted\":\"two\",\"premiumUntil\":null," +
+            "\"rewardCodes\":[null,5,{\"redeemUrl\":\"https://x\"},{\"code\":\"ONLY\",\"redeemUrl\":null}]}");
+
+        assertEquals(0, details.getRewardsGranted());
+        assertNull(details.getPremiumUntil());
+        assertEquals(1, details.getRewardCodes().size());
+        assertEquals("ONLY", details.getRewardCodes().get(0).getCode());
+        assertEquals("", details.getRewardCodes().get(0).getRedeemUrl());
+        assertEquals("", details.getRewardCodes().get(0).getGrantedAt());
+
+        MyAffiliateDetails notArray = InAppReferrals.parseMyAffiliateDetails("{\"rewardCodes\":{\"code\":\"X\"},\"premiumUntil\":\"\"}");
+        assertTrue(notArray.getRewardCodes().isEmpty());
+        assertNull(notArray.getPremiumUntil());
+    }
+
+    @Test
+    public void premiumUntil_acceptsMillisAndFirestoreTimestamps() {
+        MyAffiliateDetails millis = InAppReferrals.parseMyAffiliateDetails("{\"premiumUntil\":1792411200000}");
+        assertEquals(1792411200000L, millis.getPremiumUntilDate().getTime());
+
+        MyAffiliateDetails firestore = InAppReferrals.parseMyAffiliateDetails("{\"premiumUntil\":{\"_seconds\":1792411200,\"_nanoseconds\":0}}");
+        assertEquals(1792411200000L, firestore.getPremiumUntilDate().getTime());
+    }
+
+    @Test
+    public void parseTimeMillis_readsIsoVariants() {
+        assertEquals(Long.valueOf(1792411200000L), InAppReferrals.parseTimeMillis("2026-10-19T12:00:00Z"));
+        assertEquals(Long.valueOf(1792411200000L), InAppReferrals.parseTimeMillis("2026-10-19T13:00:00+01:00"));
+        assertEquals(Long.valueOf(1792411200000L), InAppReferrals.parseTimeMillis("2026-10-19T12:00:00"));
+        assertEquals(Long.valueOf(1792368000000L), InAppReferrals.parseTimeMillis("2026-10-19"));
+        assertNull(InAppReferrals.parseTimeMillis("soon"));
+        assertNull(InAppReferrals.parseTimeMillis(""));
+        assertNull(InAppReferrals.parseTimeMillis(null));
+    }
+
+    @Test
+    public void isPremiumActive_onlyForFutureDates() {
+        long now = 1792411200000L;
+        assertTrue(InAppReferrals.isPremiumActive("2026-10-20T00:00:00Z", now));
+        assertFalse(InAppReferrals.isPremiumActive("2026-10-19T12:00:00Z", now));
+        assertFalse(InAppReferrals.isPremiumActive("2026-01-01T00:00:00Z", now));
+        assertFalse(InAppReferrals.isPremiumActive(null, now));
+        assertFalse(InAppReferrals.isPremiumActive("not a date", now));
+    }
+
+    // MARK: Phase 2: request bodies
+
+    @Test
+    public void identityBody_hasAccountsAndDeviceId() {
+        JsonObject body = InAppReferrals.identityBody(
+            new ReferrerAccountOptions().setAppUserId(" rc_user_1 ").setPlayPurchaseToken("abcdefghij.klmnop"), "a1b2c3");
+
+        assertEquals("rc_user_1", body.get("appUserId").getAsString());
+        assertEquals("abcdefghij.klmnop", body.get("playPurchaseToken").getAsString());
+        assertEquals("a1b2c3", body.get("deviceId").getAsString());
+        assertEquals(3, body.size());
+    }
+
+    @Test
+    public void identityBody_leavesOutEmptyValues() {
+        JsonObject onlyDevice = InAppReferrals.identityBody(null, "a1b2c3");
+        assertEquals("{\"deviceId\":\"a1b2c3\"}", onlyDevice.toString());
+
+        JsonObject blanks = InAppReferrals.identityBody(
+            new ReferrerAccountOptions().setAppUserId("  ").setPlayPurchaseToken(""), null);
+        assertEquals(0, blanks.size());
+
+        JsonObject onlyUser = InAppReferrals.identityBody(new ReferrerAccountOptions().setAppUserId("u1"), null);
+        assertEquals("{\"appUserId\":\"u1\"}", onlyUser.toString());
+    }
+
+    @Test
+    public void addReferrerAccount_keepsEnrolFields() {
+        JsonObject body = new JsonObject();
+        body.addProperty("companyId", "company1");
+        body.addProperty("email", "jane@example.com");
+        InAppReferrals.addReferrerAccount(body, new ReferrerAccountOptions().setAppUserId("u1"), "a1b2c3");
+
+        assertEquals("company1", body.get("companyId").getAsString());
+        assertEquals("jane@example.com", body.get("email").getAsString());
+        assertEquals("u1", body.get("appUserId").getAsString());
+        assertEquals("a1b2c3", body.get("deviceId").getAsString());
+        assertFalse(body.has("playPurchaseToken"));
+    }
+
+    @Test
+    public void parseIdentitySaved_onlyTrueForSavedTrue() {
+        assertTrue(InAppReferrals.parseIdentitySaved(200, "{\"saved\":true}"));
+        assertFalse(InAppReferrals.parseIdentitySaved(200, "{\"saved\":false}"));
+        assertFalse(InAppReferrals.parseIdentitySaved(200, "{\"saved\":\"true\"}"));
+        assertFalse(InAppReferrals.parseIdentitySaved(200, "not json"));
+        assertFalse(InAppReferrals.parseIdentitySaved(500, "{\"saved\":true}"));
+        assertFalse(InAppReferrals.parseIdentitySaved(-1, null));
     }
 }

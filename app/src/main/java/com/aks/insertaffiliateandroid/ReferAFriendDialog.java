@@ -31,6 +31,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.DateFormat;
 import java.text.NumberFormat;
 import java.util.Currency;
 import java.util.Locale;
@@ -41,6 +42,7 @@ import java.util.Locale;
  *
  * States: loading, join (email + name, "Get my link"), code (6-digit code,
  * "Verify", "Send a new code"), enrolled (code, link, Copy, Share, stats,
+ * "Free premium until" while a referrer reward is active,
  * "Open my dashboard"). Nothing is gated behind sharing and only the system
  * share sheet is used.
  */
@@ -275,6 +277,8 @@ final class ReferAFriendDialog {
 
         if (details != null) {
             addStats(details);
+            addPremiumUntil(details);
+            // Reward codes are App Store offer codes, which can't be redeemed on Android, so they aren't shown.
             String dashboardUrl = details.getDashboardUrl();
             if (dashboardUrl != null && !dashboardUrl.isEmpty()) {
                 Button dashboard = addTextButton("Open my dashboard");
@@ -357,6 +361,14 @@ final class ReferAFriendDialog {
         LinearLayout.LayoutParams params = matchWidth();
         params.topMargin = dp(20);
         content.addView(strip, params);
+    }
+
+    private void addPremiumUntil(MyAffiliateDetails details) {
+        if (!InAppReferrals.isPremiumActive(details.getPremiumUntil(), System.currentTimeMillis())) {
+            return;
+        }
+        String date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(details.getPremiumUntilDate());
+        addMessage("Free premium until " + date, textColor);
     }
 
     private View stat(String value, String label) {

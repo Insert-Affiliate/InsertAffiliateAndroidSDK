@@ -1523,6 +1523,13 @@ public class InsertAffiliateManager {
     }
 
     /**
+     * Callback interface for setReferrerAccount
+     */
+    public interface ReferrerAccountCallback {
+        void onResult(boolean saved);
+    }
+
+    /**
      * Callback interface for getReferralProgramConfig
      */
     public interface ReferralProgramConfigCallback {
@@ -1546,7 +1553,20 @@ public class InsertAffiliateManager {
      * @param callback Receives created, verificationRequired or error
      */
     public static void createAffiliateForUser(String email, String name, AffiliateUserResultCallback callback) {
-        JsonObject body = referrerRequestBody(email, name);
+        createAffiliateForUser(email, name, null, callback);
+    }
+
+    /**
+     * Same as createAffiliateForUser(email, name, callback), and also sends the
+     * user's own accounts so the server can grant their referrer rewards.
+     * The callback runs on a background thread.
+     * @param email The user's email
+     * @param name The user's display name (optional, may be null)
+     * @param options The user's RevenueCat / Adapty app user id and Google Play purchase token (optional, may be null)
+     * @param callback Receives created, verificationRequired or error
+     */
+    public static void createAffiliateForUser(String email, String name, ReferrerAccountOptions options, AffiliateUserResultCallback callback) {
+        JsonObject body = referrerRequestBody(email, name, options);
         if (body == null) {
             deliverResult(callback, AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
                 "Initialise the SDK with a company code first."));
@@ -1573,7 +1593,21 @@ public class InsertAffiliateManager {
      * @param callback Receives connected, created or error
      */
     public static void verifyAffiliateCode(String email, String code, String name, AffiliateUserResultCallback callback) {
-        JsonObject body = referrerRequestBody(email, name);
+        verifyAffiliateCode(email, code, name, null, callback);
+    }
+
+    /**
+     * Same as verifyAffiliateCode(email, code, name, callback), and also sends the
+     * user's own accounts so the server can grant their referrer rewards.
+     * The callback runs on a background thread.
+     * @param email The same email passed to createAffiliateForUser
+     * @param code The 6-digit code from the email
+     * @param name The user's display name (optional, used if a new affiliate is created)
+     * @param options The user's RevenueCat / Adapty app user id and Google Play purchase token (optional, may be null)
+     * @param callback Receives connected, created or error
+     */
+    public static void verifyAffiliateCode(String email, String code, String name, ReferrerAccountOptions options, AffiliateUserResultCallback callback) {
+        JsonObject body = referrerRequestBody(email, name, options);
         if (body == null) {
             deliverResult(callback, AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
                 "Initialise the SDK with a company code first."));
@@ -1594,6 +1628,44 @@ public class InsertAffiliateManager {
         loadMyAffiliateDetails((details, errorCode) -> {
             if (callback != null) callback.onMyAffiliateDetailsReceived(details);
         });
+    }
+
+    /**
+     * Saves the connected user's own accounts (RevenueCat / Adapty app user id,
+     * Google Play purchase token) for an existing referrer. Use it when the user
+     * subscribes or logs in after joining; the server then grants any rewards
+     * that were waiting. Receives false when this device is not connected or the
+     * request fails. If the server no longer recognises the device, the stored
+     * token is cleared. The callback runs on a background thread.
+     * @param options The user's accounts
+     * @param callback Receives true when saved (optional, may be null)
+     */
+    public static void setReferrerAccount(ReferrerAccountOptions options, ReferrerAccountCallback callback) {
+        String token = getReferrerToken();
+        if (token == null || token.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot set referrer account: user is not an affiliate yet. Call createAffiliateForUser first.");
+            deliverSaved(callback, false);
+            return;
+        }
+        JsonObject body = InAppReferrals.identityBody(options, referrerDeviceId());
+        verboseLog("Saving referrer account...");
+        new Thread(() -> {
+            SdkAffiliateResponse response = sdkAffiliateRequest("POST", "/me/identity", body.toString(), token);
+            if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED || response.status == HttpURLConnection.HTTP_NOT_FOUND) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer connection is no longer valid (" +
+                    InAppReferrals.errorCode(response.body) + "). Clearing it.");
+                clearReferrerToken();
+                deliverSaved(callback, false);
+                return;
+            }
+            boolean saved = InAppReferrals.parseIdentitySaved(response.status, response.body);
+            if (saved) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer account saved.");
+            } else {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error saving referrer account: HTTP " + response.status);
+            }
+            deliverSaved(callback, saved);
+        }).start();
     }
 
     /**
@@ -1740,7 +1812,7 @@ public class InsertAffiliateManager {
         }).start();
     }
 
-    private static JsonObject referrerRequestBody(String email, String name) {
+    private static JsonObject referrerRequestBody(String email, String name, ReferrerAccountOptions options) {
         if (companyCode == null || companyCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
             return null;
@@ -1750,7 +1822,18 @@ public class InsertAffiliateManager {
         body.addProperty("email", email == null ? "" : email.trim());
         body.addProperty("name", name == null ? "" : name.trim());
         body.addProperty("platform", InAppReferrals.PLATFORM);
+        InAppReferrals.addReferrerAccount(body, options, referrerDeviceId());
         return body;
+    }
+
+    // The device id from the "{shortCode}-{deviceId}" insert affiliate identifier,
+    // so the server's self-referral checks match. Null before init.
+    private static String referrerDeviceId() {
+        if (appContext == null) {
+            return null;
+        }
+        return appContext.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE)
+            .getString("shortUniqueDeviceID", null);
     }
 
     private static void sendEnrolRequest(String path, JsonObject body, AffiliateUserResultCallback callback) {
@@ -1778,6 +1861,15 @@ public class InsertAffiliateManager {
             callback.onResult(result);
         } catch (Exception e) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in affiliate result callback: " + e.getMessage());
+        }
+    }
+
+    private static void deliverSaved(ReferrerAccountCallback callback, boolean saved) {
+        if (callback == null) return;
+        try {
+            callback.onResult(saved);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in referrer account callback: " + e.getMessage());
         }
     }
 

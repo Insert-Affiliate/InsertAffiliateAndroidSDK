@@ -1,9 +1,17 @@
 package com.aks.insertaffiliateandroid;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -97,8 +105,85 @@ final class InAppReferrals {
             number(json, "totalPaid"),
             number(json, "totalUnpaid"),
             string(json, "currency"),
-            string(json, "dashboardUrl")
+            string(json, "dashboardUrl"),
+            integer(json, "rewardsGranted"),
+            timestamp(json, "premiumUntil"),
+            rewardCodes(json)
         );
+    }
+
+    /** Parses POST /me/identity: true only for a 2xx response with saved: true. */
+    static boolean parseIdentitySaved(int httpStatus, String body) {
+        if (httpStatus < 200 || httpStatus >= 300) {
+            return false;
+        }
+        JsonObject json = parseObject(body);
+        JsonElement saved = json == null ? null : json.get("saved");
+        return saved != null && saved.isJsonPrimitive() && saved.getAsJsonPrimitive().isBoolean() && saved.getAsBoolean();
+    }
+
+    // MARK: Request bodies
+
+    /**
+     * Adds the referrer's accounts to an enrol, verify or identity body.
+     * deviceId is the device id from the "{shortCode}-{deviceId}" insert
+     * affiliate identifier. Empty values are left out.
+     */
+    static void addReferrerAccount(JsonObject body, ReferrerAccountOptions options, String deviceId) {
+        putIfPresent(body, "deviceId", deviceId);
+        if (options != null) {
+            putIfPresent(body, "appUserId", options.getAppUserId());
+            putIfPresent(body, "playPurchaseToken", options.getPlayPurchaseToken());
+        }
+    }
+
+    /** Body for POST /me/identity: { appUserId?, playPurchaseToken?, deviceId }. */
+    static JsonObject identityBody(ReferrerAccountOptions options, String deviceId) {
+        JsonObject body = new JsonObject();
+        addReferrerAccount(body, options, deviceId);
+        return body;
+    }
+
+    private static void putIfPresent(JsonObject body, String key, String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            body.addProperty(key, value.trim());
+        }
+    }
+
+    // MARK: Dates
+
+    /**
+     * Epoch millis for an ISO 8601 date or date-time (with Z, an offset, or
+     * neither, read as UTC). Null when absent or unreadable.
+     */
+    static Long parseTimeMillis(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String text = value.trim();
+        try {
+            return Instant.parse(text).toEpochMilli();
+        } catch (Exception ignored) {
+        }
+        try {
+            return OffsetDateTime.parse(text).toInstant().toEpochMilli();
+        } catch (Exception ignored) {
+        }
+        try {
+            return LocalDateTime.parse(text).toInstant(ZoneOffset.UTC).toEpochMilli();
+        } catch (Exception ignored) {
+        }
+        try {
+            return LocalDate.parse(text).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /** True when premiumUntil is a readable date after nowMillis. */
+    static boolean isPremiumActive(String premiumUntil, long nowMillis) {
+        Long until = parseTimeMillis(premiumUntil);
+        return until != null && until > nowMillis;
     }
 
     /** Parses GET /config/{companyId}. Returns null when the body is not a JSON object. */
@@ -160,6 +245,47 @@ final class InAppReferrals {
 
     private static int integer(JsonObject json, String key) {
         return (int) Math.round(number(json, key));
+    }
+
+    // A date as an ISO string, or null. Accepts an ISO string, epoch millis,
+    // or a serialised Firestore timestamp ({ _seconds } or { seconds }).
+    private static String timestamp(JsonObject json, String key) {
+        if (json == null) return null;
+        JsonElement value = json.get(key);
+        if (value == null || value.isJsonNull()) return null;
+        try {
+            if (value.isJsonPrimitive()) {
+                if (value.getAsJsonPrimitive().isNumber()) {
+                    return Instant.ofEpochMilli(value.getAsLong()).toString();
+                }
+                String text = value.getAsString().trim();
+                return text.isEmpty() ? null : text;
+            }
+            if (value.isJsonObject()) {
+                JsonObject object = value.getAsJsonObject();
+                double seconds = object.has("_seconds") ? number(object, "_seconds") : number(object, "seconds");
+                return seconds > 0 ? Instant.ofEpochMilli((long) (seconds * 1000)).toString() : null;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    // rewardCodes: [{ code, redeemUrl, grantedAt }]. Entries without a code are skipped.
+    private static List<MyAffiliateDetails.RewardCode> rewardCodes(JsonObject json) {
+        List<MyAffiliateDetails.RewardCode> codes = new ArrayList<>();
+        JsonElement value = json == null ? null : json.get("rewardCodes");
+        if (value == null || !value.isJsonArray()) return codes;
+        JsonArray array = value.getAsJsonArray();
+        for (JsonElement item : array) {
+            if (item == null || !item.isJsonObject()) continue;
+            JsonObject entry = item.getAsJsonObject();
+            String code = string(entry, "code");
+            if (code.isEmpty()) continue;
+            String grantedAt = timestamp(entry, "grantedAt");
+            codes.add(new MyAffiliateDetails.RewardCode(code, string(entry, "redeemUrl"), grantedAt == null ? "" : grantedAt));
+        }
+        return codes;
     }
 
     // MARK: Share text
