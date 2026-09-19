@@ -427,4 +427,28 @@ public class InAppReferralsTest {
         assertFalse(InAppReferrals.isConnectionGone(500, "{\"code\":\"INVALID_TOKEN\"}"));
         assertFalse(InAppReferrals.isConnectionGone(-1, null));
     }
+
+    @Test
+    public void normalizeEmailCode_keepsOnlyDigitsAsAscii() {
+        assertEquals("123456", InAppReferrals.normalizeEmailCode("123456"));
+        assertEquals("123456", InAppReferrals.normalizeEmailCode(" 123-456 "));
+        assertEquals("123456", InAppReferrals.normalizeEmailCode("123 456"));
+        // Eastern Arabic and Devanagari digits
+        assertEquals("123456", InAppReferrals.normalizeEmailCode("\u0661\u0662\u0663\u0664\u0665\u0666"));
+        assertEquals("789012", InAppReferrals.normalizeEmailCode("\u096D\u096E\u096F\u0966\u0967\u0968"));
+        // Full-width digits
+        assertEquals("123456", InAppReferrals.normalizeEmailCode("\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16"));
+        assertEquals("", InAppReferrals.normalizeEmailCode("abc"));
+        assertEquals("", InAppReferrals.normalizeEmailCode(null));
+    }
+
+    @Test
+    public void isCompleteEmailCode_exactlySixDigits() {
+        assertTrue(InAppReferrals.isCompleteEmailCode("123-456"));
+        assertTrue(InAppReferrals.isCompleteEmailCode("\u0661\u0662\u0663 \u0664\u0665\u0666"));
+        assertFalse(InAppReferrals.isCompleteEmailCode("12345"));
+        assertFalse(InAppReferrals.isCompleteEmailCode("1234567"));
+        assertFalse(InAppReferrals.isCompleteEmailCode("12345a"));
+        assertFalse(InAppReferrals.isCompleteEmailCode(null));
+    }
 }

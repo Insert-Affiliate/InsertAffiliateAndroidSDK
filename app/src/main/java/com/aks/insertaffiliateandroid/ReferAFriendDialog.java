@@ -14,8 +14,10 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
+import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -218,17 +220,28 @@ final class ReferAFriendDialog {
         addHeader();
         addMessage("We sent a 6-digit code to " + email + ". Enter it below to connect your account.", secondaryTextColor);
 
-        EditText codeField = addField("6-digit code", "", InputType.TYPE_CLASS_NUMBER);
-        codeField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(6)});
+        // Text input with a number keyboard, so pasted "123-456" and other
+        // scripts' digits reach normalizeEmailCode instead of being filtered out.
+        EditText codeField = addField("6-digit code", "", InputType.TYPE_CLASS_TEXT);
+        codeField.setRawInputType(InputType.TYPE_CLASS_NUMBER);
+        codeField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(20)});
         codeField.setGravity(Gravity.CENTER);
         codeField.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         codeField.setLetterSpacing(0.3f);
         TextView errorView = addError(error);
 
         Button verify = addPrimaryButton("Verify");
+        setEnabled(verify, false);
+        codeField.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                setEnabled(verify, InAppReferrals.isCompleteEmailCode(s.toString()));
+            }
+        });
         verify.setOnClickListener(v -> {
-            String code = codeField.getText().toString().trim();
-            if (code.length() != 6) {
+            String code = InAppReferrals.normalizeEmailCode(codeField.getText().toString());
+            if (code.length() != InAppReferrals.EMAIL_CODE_LENGTH) {
                 setError(errorView, InAppReferrals.messageForError("INVALID_CODE"));
                 return;
             }
@@ -524,9 +537,13 @@ final class ReferAFriendDialog {
     }
 
     private void setBusy(Button button, boolean busy, String label) {
-        button.setEnabled(!busy);
-        button.setAlpha(busy ? 0.6f : 1f);
+        setEnabled(button, !busy);
         button.setText(busy ? "Please wait..." : label);
+    }
+
+    private void setEnabled(Button button, boolean enabled) {
+        button.setEnabled(enabled);
+        button.setAlpha(enabled ? 1f : 0.6f);
     }
 
     // MARK: Actions

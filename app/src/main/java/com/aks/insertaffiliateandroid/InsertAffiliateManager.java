@@ -1589,7 +1589,7 @@ public class InsertAffiliateManager {
      * Finishes connecting with the 6-digit code emailed after createAffiliateForUser
      * returned verificationRequired. The callback runs on a background thread.
      * @param email The same email passed to createAffiliateForUser
-     * @param code The 6-digit code from the email
+     * @param code The 6-digit code from the email. Spaces and dashes are ignored and any script's digits are accepted
      * @param name The user's display name (optional, used if a new affiliate is created)
      * @param callback Receives connected, created or error
      */
@@ -1602,7 +1602,7 @@ public class InsertAffiliateManager {
      * user's own accounts so the server can grant their referrer rewards.
      * The callback runs on a background thread.
      * @param email The same email passed to createAffiliateForUser
-     * @param code The 6-digit code from the email
+     * @param code The 6-digit code from the email. Spaces and dashes are ignored and any script's digits are accepted
      * @param name The user's display name (optional, used if a new affiliate is created)
      * @param options The user's RevenueCat / Adapty app user id and Google Play purchase token (optional, may be null)
      * @param callback Receives connected, created or error
@@ -1614,7 +1614,7 @@ public class InsertAffiliateManager {
                 "Initialise the SDK with a company code first."));
             return;
         }
-        body.addProperty("code", code == null ? "" : code.trim());
+        body.addProperty("code", InAppReferrals.normalizeEmailCode(code));
         verboseLog("Verifying affiliate code...");
         sendEnrolRequest("/verify", body, callback);
     }

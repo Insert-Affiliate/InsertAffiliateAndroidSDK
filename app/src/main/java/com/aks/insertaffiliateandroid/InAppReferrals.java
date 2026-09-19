@@ -122,6 +122,36 @@ final class InAppReferrals {
         return saved != null && saved.isJsonPrimitive() && saved.getAsJsonPrimitive().isBoolean() && saved.getAsBoolean();
     }
 
+    // MARK: Email code
+
+    static final int EMAIL_CODE_LENGTH = 6;
+
+    /**
+     * The emailed code as ASCII digits: every Unicode decimal digit (for example
+     * Eastern Arabic digits) becomes 0-9 and everything else (spaces, dashes) is
+     * dropped, so "123-456" and "\u0661\u0662\u0663 \u0664\u0665\u0666" both give "123456".
+     */
+    static String normalizeEmailCode(String code) {
+        if (code == null) {
+            return "";
+        }
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < code.length(); ) {
+            int c = code.codePointAt(i);
+            int digit = Character.digit(c, 10);
+            if (digit >= 0 && Character.isDigit(c)) {
+                digits.append((char) ('0' + digit));
+            }
+            i += Character.charCount(c);
+        }
+        return digits.toString();
+    }
+
+    /** True when the code has exactly six digits once normalised. */
+    static boolean isCompleteEmailCode(String code) {
+        return normalizeEmailCode(code).length() == EMAIL_CODE_LENGTH;
+    }
+
     // MARK: Request bodies
 
     /**
