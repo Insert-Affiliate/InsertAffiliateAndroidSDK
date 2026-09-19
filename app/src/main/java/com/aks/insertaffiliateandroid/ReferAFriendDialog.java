@@ -1,6 +1,7 @@
 package com.aks.insertaffiliateandroid;
 
 import android.app.Activity;
+import android.app.Application;
 import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
@@ -14,6 +15,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.InputType;
@@ -104,6 +106,7 @@ final class ReferAFriendDialog {
         dialog.setCanceledOnTouchOutside(true);
         dialog.setOnDismissListener(d -> {
             closed = true;
+            activity.getApplication().unregisterActivityLifecycleCallbacks(lifecycleCallbacks);
             Runnable onClose = options.getOnClose();
             if (onClose != null) onClose.run();
         });
@@ -119,9 +122,28 @@ final class ReferAFriendDialog {
 
     void show() {
         showLoading();
+        activity.getApplication().registerActivityLifecycleCallbacks(lifecycleCallbacks);
         dialog.show();
         load();
     }
+
+    // Dismisses the screen when the host activity is destroyed (including a
+    // rotation or theme change), so its window never leaks and onClose runs.
+    private final Application.ActivityLifecycleCallbacks lifecycleCallbacks = new Application.ActivityLifecycleCallbacks() {
+        @Override
+        public void onActivityDestroyed(Activity destroyed) {
+            if (destroyed == activity && dialog.isShowing()) {
+                dialog.dismiss();
+            }
+        }
+
+        @Override public void onActivityCreated(Activity a, Bundle savedInstanceState) {}
+        @Override public void onActivityStarted(Activity a) {}
+        @Override public void onActivityResumed(Activity a) {}
+        @Override public void onActivityPaused(Activity a) {}
+        @Override public void onActivityStopped(Activity a) {}
+        @Override public void onActivitySaveInstanceState(Activity a, Bundle outState) {}
+    };
 
     // Loads the portal config, then the user's details if this device is connected.
     private void load() {
@@ -574,7 +596,7 @@ final class ReferAFriendDialog {
 
     private void runOnUi(Runnable action) {
         activity.runOnUiThread(() -> {
-            if (closed || activity.isFinishing() || !dialog.isShowing()) return;
+            if (closed || activity.isFinishing() || activity.isDestroyed() || !dialog.isShowing()) return;
             action.run();
         });
     }

@@ -1762,7 +1762,7 @@ public class InsertAffiliateManager {
      * @param options Prefill, copy and theme options (optional)
      */
     public static void showReferAFriend(Activity activity, ReferAFriendOptions options) {
-        if (activity == null || activity.isFinishing()) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot show Refer a friend: activity is not available");
             return;
         }
