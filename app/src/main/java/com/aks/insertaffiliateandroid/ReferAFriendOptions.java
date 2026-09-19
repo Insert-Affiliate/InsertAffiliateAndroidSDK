@@ -22,6 +22,8 @@ public class ReferAFriendOptions {
     private Typeface typeface;
     private float cornerRadiusDp = 16f;
     private Runnable onClose;
+    private String appUserId;
+    private String playPurchaseToken;
 
     /** Prefills the email field, usually with your logged-in user's email. */
     public ReferAFriendOptions setEmail(String email) {
@@ -87,6 +89,22 @@ public class ReferAFriendOptions {
         return this;
     }
 
+    /**
+     * Your user's RevenueCat app user id or Adapty customer user id, sent when
+     * they join, and saved with setReferrerAccount when the screen opens for a
+     * user who already joined, so waiting referrer rewards are granted.
+     */
+    public ReferAFriendOptions setAppUserId(String appUserId) {
+        this.appUserId = appUserId;
+        return this;
+    }
+
+    /** Your user's own Google Play subscription purchase token. Sent like setAppUserId. */
+    public ReferAFriendOptions setPlayPurchaseToken(String playPurchaseToken) {
+        this.playPurchaseToken = playPurchaseToken;
+        return this;
+    }
+
     public String getEmail() {
         return email;
     }
@@ -121,5 +139,24 @@ public class ReferAFriendOptions {
 
     public Runnable getOnClose() {
         return onClose;
+    }
+
+    public String getAppUserId() {
+        return appUserId;
+    }
+
+    public String getPlayPurchaseToken() {
+        return playPurchaseToken;
+    }
+
+    // The referrer's accounts for createAffiliateForUser, verifyAffiliateCode
+    // and setReferrerAccount, or null when neither is set.
+    ReferrerAccountOptions referrerAccount() {
+        boolean hasUser = appUserId != null && !appUserId.trim().isEmpty();
+        boolean hasToken = playPurchaseToken != null && !playPurchaseToken.trim().isEmpty();
+        if (!hasUser && !hasToken) {
+            return null;
+        }
+        return new ReferrerAccountOptions().setAppUserId(appUserId).setPlayPurchaseToken(playPurchaseToken);
     }
 }

@@ -130,8 +130,18 @@ final class ReferAFriendDialog {
                 return;
             }
             showLoading();
+            saveReferrerAccount();
             loadMyDetails(null);
         }));
+    }
+
+    // Already joined: saves the app's referrer accounts once, so rewards that
+    // were waiting for them (for example Google Play deferrals) are granted.
+    private void saveReferrerAccount() {
+        ReferrerAccountOptions account = options.referrerAccount();
+        if (account != null) {
+            InsertAffiliateManager.setReferrerAccount(account, null);
+        }
     }
 
     // fallback: what to show if /me fails right after joining (no stats).
@@ -198,7 +208,7 @@ final class ReferAFriendDialog {
                 return;
             }
             setBusy(join, true, "Get my link");
-            InsertAffiliateManager.createAffiliateForUser(email, name, result -> runOnUi(() -> handleResult(result, join, "Get my link", errorView)));
+            InsertAffiliateManager.createAffiliateForUser(email, name, options.referrerAccount(), result -> runOnUi(() -> handleResult(result, join, "Get my link", errorView)));
         });
     }
 
@@ -222,13 +232,13 @@ final class ReferAFriendDialog {
                 return;
             }
             setBusy(verify, true, "Verify");
-            InsertAffiliateManager.verifyAffiliateCode(email, code, name, result -> runOnUi(() -> handleResult(result, verify, "Verify", errorView)));
+            InsertAffiliateManager.verifyAffiliateCode(email, code, name, options.referrerAccount(), result -> runOnUi(() -> handleResult(result, verify, "Verify", errorView)));
         });
 
         Button resend = addTextButton("Send a new code");
         resend.setOnClickListener(v -> {
             setBusy(resend, true, "Send a new code");
-            InsertAffiliateManager.createAffiliateForUser(email, name, result -> runOnUi(() -> {
+            InsertAffiliateManager.createAffiliateForUser(email, name, options.referrerAccount(), result -> runOnUi(() -> {
                 setBusy(resend, false, "Send a new code");
                 if (result.isVerificationRequired()) {
                     setError(errorView, null);

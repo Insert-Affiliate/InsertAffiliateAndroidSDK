@@ -1022,6 +1022,7 @@ Headline, reward text and colour come from your dashboard, so you can change the
 | `setHeadline(String)` / `setRewardText(String)` | Override the dashboard copy. Default headline: "Refer a friend" |
 | `setTypeface(Typeface)` / `setCornerRadius(float dp)` | Match your app's font and shape |
 | `setOnClose(Runnable)` | Called on the main thread when the screen closes |
+| `setAppUserId(String)` / `setPlayPurchaseToken(String)` | The user's RevenueCat / Adapty app user id and own Google Play purchase token, for automatic referrer rewards. Sent when they join; if they already joined, saved once each time the screen opens (see Automatic referrer rewards) |
 
 The screen is built with standard Android views, so it adds no dependencies and works with any app theme (light and dark).
 
@@ -1083,7 +1084,7 @@ InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}
 
 **Share text:** with a web link the SDK shares `"<message> <link>"` (default message `"Try {your app name}:"`). For Short Code Only apps it shares `"Use my code {code} in {your app name}"`.
 
-**Automatic referrer rewards:** if you switched on referrer rewards in your dashboard (RevenueCat, Adapty or Google Play), the server needs to know which account belongs to your user. Pass it when they join, or later with `setReferrerAccount` when they subscribe or log in after joining; the server then grants any rewards that were waiting. The SDK also sends this device's id (the one in the insert affiliate identifier) so a "friend" who is really the referrer isn't counted.
+**Automatic referrer rewards:** if you switched on referrer rewards in your dashboard (RevenueCat, Adapty or Google Play), the server needs to know which account belongs to your user. Pass it when they join (or set it on `ReferAFriendOptions` if you only use the drop-in screen), or later with `setReferrerAccount` when they subscribe or log in after joining; the server then grants any rewards that were waiting. The SDK also sends this device's id (the one in the insert affiliate identifier) so a "friend" who is really the referrer isn't counted.
 
 ```java
 ReferrerAccountOptions account = new ReferrerAccountOptions()
