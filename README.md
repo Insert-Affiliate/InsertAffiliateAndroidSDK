@@ -1009,7 +1009,7 @@ InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
 
 The screen handles everything itself:
 - **Not joined yet:** email and name fields (prefilled) and a "Get my link" button.
-- **Email already belongs to an affiliate** (for example after a reinstall or on a new phone): asks for the 6-digit code we email them, with "Send a new code".
+- **Email already belongs to an affiliate** (for example after a reinstall or on a new phone, unless Auto Backup restored the connection): asks for the 6-digit code we email them, with "Send a new code".
 - **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, "Free premium until {date}" while a referrer reward is active, "Your rewards" with any Google Play promo codes (Copy and Redeem), and "Open my dashboard".
 
 Headline, reward text and colour come from your dashboard, so you can change the wording without an app release. You can override them in code:
@@ -1041,7 +1041,8 @@ InsertAffiliateManager.createAffiliateForUser(email, name, result -> {
         // Ask for it, then call verifyAffiliateCode.
     } else {
         // result.getErrorCode(): PROGRAM_DISABLED, AFFILIATE_LIMIT_REACHED, INVALID_EMAIL,
-        // TOO_MANY_CODES, RATE_LIMITED, NETWORK_ERROR, SERVER_ERROR
+        // TOO_MANY_CODES, RATE_LIMITED, COMPANY_NOT_FOUND, INVALID_COMPANY_ID,
+        // DEEP_LINK_POOL_CONFLICT (try again), NOT_INITIALIZED, NETWORK_ERROR, SERVER_ERROR
         Log.e("MyApp", result.getErrorMessage());
     }
 });
@@ -1051,8 +1052,11 @@ InsertAffiliateManager.verifyAffiliateCode(email, "123456", name, result -> {
     if (result.isSuccess()) {
         // status "connected" (existing affiliate) or "created"
     } else if ("INVALID_CODE".equals(result.getErrorCode())) {
-        // Wrong or expired code
+        // Wrong or expired code. Spaces, dashes and digits in any script are accepted.
     }
+    // Other codes: PROGRAM_DISABLED, INVALID_EMAIL, RATE_LIMITED, COMPANY_NOT_FOUND,
+    // INVALID_COMPANY_ID, DEEP_LINK_POOL_CONFLICT (try again), AFFILIATE_LIMIT_REACHED,
+    // NOT_INITIALIZED, NETWORK_ERROR, SERVER_ERROR
 });
 
 // 3. Read their stats (null if this device is not connected)
@@ -1112,7 +1116,7 @@ InsertAffiliateManager.getMyAffiliateDetails(details -> {
 
 `getRewardCodes()` holds reward codes (`getCode()`, `getRedeemUrl()`, `getStore()`, `getGrantedAt()`). `getStore()` is `"google_play"` for Google Play promo codes and `"app_store"` for App Store one-time offer codes (codes with no store are App Store codes); `isGooglePlay()` is a shortcut. The drop-in screen shows Google Play promo codes under "Your rewards", each with Copy and a Redeem button that opens the Play Store to redeem it. App Store codes can only be redeemed on iOS, so the drop-in screen keeps them hidden on Android.
 
-**How the connection works:** when a user joins, the server gives this device a private token, stored in private `SharedPreferences` (one per company code). It only lets the device read the user's own stats. If the app is reinstalled, the user enters their email again and confirms with the emailed code; their affiliate account, earnings and dashboard are unchanged.
+**How the connection works:** when a user joins, the server gives this device a private token, stored in private `SharedPreferences` (one per company code). It only lets the device read the user's own stats. If Android Auto Backup is on for your app (the default), the token can be restored after a reinstall or on a new phone, and the user stays connected without an email code. Otherwise they enter their email again and confirm with the emailed code. Either way their affiliate account, earnings and dashboard are unchanged. The token is cleared when the server reports it is no longer valid, or when you call `signOutAffiliate()`.
 
 **Rewarding referrers:** values shown on the device are for display only, because a modified device can fake what it shows. Grant anything valuable (credits, premium time) from your server, using the `referral.created` webhook or the Public API. `referralCount` only goes up, so you can compare it with what you have already rewarded and grant the difference.
 
