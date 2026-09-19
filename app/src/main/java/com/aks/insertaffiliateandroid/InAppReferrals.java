@@ -208,6 +208,17 @@ final class InAppReferrals {
         return string(parseObject(body), "code");
     }
 
+    /**
+     * True when the server says the device token no longer works: HTTP 401
+     * with INVALID_TOKEN, or HTTP 404 with AFFILIATE_NOT_FOUND. Any other
+     * 401/404 (a proxy, or an API without the route) keeps the token.
+     */
+    static boolean isConnectionGone(int httpStatus, String body) {
+        String code = errorCode(body);
+        return (httpStatus == 401 && "INVALID_TOKEN".equals(code))
+            || (httpStatus == 404 && "AFFILIATE_NOT_FOUND".equals(code));
+    }
+
     private static AffiliateUserResult errorFrom(JsonObject json) {
         String code = string(json, "code");
         String message = string(json, "error");

@@ -1507,6 +1507,7 @@ public class InsertAffiliateManager {
     private static final String REFERRER_PREFS = "InsertAffiliateReferrer";
     private static final String REFERRER_TOKEN_KEY_PREFIX = "referrer_token_";
     static final String NOT_ENROLLED = "NOT_ENROLLED";
+    private static final Object REFERRER_TOKEN_LOCK = new Object();
 
     /**
      * Callback interface for createAffiliateForUser and verifyAffiliateCode
@@ -1651,10 +1652,10 @@ public class InsertAffiliateManager {
         verboseLog("Saving referrer account...");
         new Thread(() -> {
             SdkAffiliateResponse response = sdkAffiliateRequest("POST", "/me/identity", body.toString(), token);
-            if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED || response.status == HttpURLConnection.HTTP_NOT_FOUND) {
+            if (InAppReferrals.isConnectionGone(response.status, response.body)) {
                 Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer connection is no longer valid (" +
                     InAppReferrals.errorCode(response.body) + "). Clearing it.");
-                clearReferrerToken();
+                clearReferrerToken(token);
                 deliverSaved(callback, false);
                 return;
             }
@@ -1799,12 +1800,13 @@ public class InsertAffiliateManager {
                 callback.onLoaded(details, details == null ? AffiliateUserResult.ERROR_SERVER : null);
                 return;
             }
-            if (response.status == HttpURLConnection.HTTP_UNAUTHORIZED || response.status == HttpURLConnection.HTTP_NOT_FOUND) {
+            if (InAppReferrals.isConnectionGone(response.status, response.body)) {
                 // INVALID_TOKEN or AFFILIATE_NOT_FOUND: this device is no longer connected.
                 Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer connection is no longer valid (" +
                     InAppReferrals.errorCode(response.body) + "). Clearing it.");
-                clearReferrerToken();
-                callback.onLoaded(null, NOT_ENROLLED);
+                // A newer connection made meanwhile stays; report a retryable error instead.
+                boolean cleared = clearReferrerToken(token);
+                callback.onLoaded(null, cleared ? NOT_ENROLLED : AffiliateUserResult.ERROR_SERVER);
                 return;
             }
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching my affiliate details: HTTP " + response.status);
@@ -1953,14 +1955,36 @@ public class InsertAffiliateManager {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot store referrer connection: SDK is not initialised");
             return;
         }
-        prefs.edit().putString(key, token).apply();
+        synchronized (REFERRER_TOKEN_LOCK) {
+            prefs.edit().putString(key, token).apply();
+        }
     }
 
     private static void clearReferrerToken() {
         SharedPreferences prefs = referrerPrefs();
         String key = referrerTokenKey();
         if (prefs != null && key != null) {
+            synchronized (REFERRER_TOKEN_LOCK) {
+                prefs.edit().remove(key).apply();
+            }
+        }
+    }
+
+    // Clears the stored token only while it is still sentToken, so a rejected
+    // request never removes a newer connection made while it was in flight.
+    // Returns true when the token was cleared.
+    private static boolean clearReferrerToken(String sentToken) {
+        SharedPreferences prefs = referrerPrefs();
+        String key = referrerTokenKey();
+        if (prefs == null || key == null || sentToken == null) {
+            return false;
+        }
+        synchronized (REFERRER_TOKEN_LOCK) {
+            if (!sentToken.equals(prefs.getString(key, null))) {
+                return false;
+            }
             prefs.edit().remove(key).apply();
+            return true;
         }
     }
 }

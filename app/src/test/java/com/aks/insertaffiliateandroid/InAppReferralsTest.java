@@ -413,4 +413,18 @@ public class InAppReferralsTest {
         assertFalse(InAppReferrals.parseIdentitySaved(500, "{\"saved\":true}"));
         assertFalse(InAppReferrals.parseIdentitySaved(-1, null));
     }
+
+    @Test
+    public void isConnectionGone_onlyForTheServerTokenCodes() {
+        assertTrue(InAppReferrals.isConnectionGone(401, "{\"error\":\"Not connected.\",\"code\":\"INVALID_TOKEN\"}"));
+        assertTrue(InAppReferrals.isConnectionGone(404, "{\"error\":\"Gone.\",\"code\":\"AFFILIATE_NOT_FOUND\"}"));
+        // A 404 from a missing route or a proxy keeps the token.
+        assertFalse(InAppReferrals.isConnectionGone(404, "<pre>Cannot POST /V1/sdk/affiliate/me/identity</pre>"));
+        assertFalse(InAppReferrals.isConnectionGone(404, "{\"code\":\"COMPANY_NOT_FOUND\"}"));
+        assertFalse(InAppReferrals.isConnectionGone(401, ""));
+        assertFalse(InAppReferrals.isConnectionGone(401, null));
+        assertFalse(InAppReferrals.isConnectionGone(401, "{\"code\":\"AFFILIATE_NOT_FOUND\"}"));
+        assertFalse(InAppReferrals.isConnectionGone(500, "{\"code\":\"INVALID_TOKEN\"}"));
+        assertFalse(InAppReferrals.isConnectionGone(-1, null));
+    }
 }
