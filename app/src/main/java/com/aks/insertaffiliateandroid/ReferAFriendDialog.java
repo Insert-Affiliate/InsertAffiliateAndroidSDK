@@ -34,6 +34,7 @@ import android.widget.Toast;
 import java.text.DateFormat;
 import java.text.NumberFormat;
 import java.util.Currency;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -42,8 +43,8 @@ import java.util.Locale;
  *
  * States: loading, join (email + name, "Get my link"), code (6-digit code,
  * "Verify", "Send a new code"), enrolled (code, link, Copy, Share, stats,
- * "Free premium until" while a referrer reward is active,
- * "Open my dashboard"). Nothing is gated behind sharing and only the system
+ * "Free premium until" while a referrer reward is active, Google Play
+ * reward codes with "Redeem", "Open my dashboard"). Nothing is gated behind sharing and only the system
  * share sheet is used.
  */
 final class ReferAFriendDialog {
@@ -288,7 +289,7 @@ final class ReferAFriendDialog {
         if (details != null) {
             addStats(details);
             addPremiumUntil(details);
-            // Reward codes are App Store offer codes, which can't be redeemed on Android, so they aren't shown.
+            addRewardCodes(details);
             String dashboardUrl = details.getDashboardUrl();
             if (dashboardUrl != null && !dashboardUrl.isEmpty()) {
                 Button dashboard = addTextButton("Open my dashboard");
@@ -379,6 +380,43 @@ final class ReferAFriendDialog {
         }
         String date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(details.getPremiumUntilDate());
         addMessage("Free premium until " + date, textColor);
+    }
+
+    // Only Google Play promo codes: App Store offer codes can't be redeemed on Android.
+    private void addRewardCodes(MyAffiliateDetails details) {
+        List<MyAffiliateDetails.RewardCode> codes = InAppReferrals.googlePlayRewardCodes(details.getRewardCodes());
+        if (codes.isEmpty()) return;
+        addLabel("Your rewards");
+        for (MyAffiliateDetails.RewardCode reward : codes) {
+            addRewardRow(reward);
+        }
+    }
+
+    private void addRewardRow(MyAffiliateDetails.RewardCode reward) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(6), dp(6), dp(6));
+        row.setBackground(rounded(fieldColor));
+
+        TextView codeView = text(reward.getCode(), 17, textColor, true);
+        codeView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        codeView.setSingleLine(true);
+        codeView.setTextIsSelectable(true);
+        row.addView(codeView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        Button copy = addTextButtonTo(row, "Copy");
+        copy.setOnClickListener(v -> copyToClipboard(reward.getCode()));
+
+        String redeemUrl = reward.getRedeemUrl();
+        if (redeemUrl != null && !redeemUrl.isEmpty()) {
+            Button redeem = addTextButtonTo(row, "Redeem");
+            redeem.setOnClickListener(v -> openUrl(redeemUrl));
+        }
+
+        LinearLayout.LayoutParams params = matchWidth();
+        params.topMargin = dp(6);
+        content.addView(row, params);
     }
 
     private View stat(String value, String label) {
@@ -507,7 +545,7 @@ final class ReferAFriendDialog {
         try {
             activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (ActivityNotFoundException e) {
-            Log.e("InsertAffiliate TAG", "[Insert Affiliate] No app can open the dashboard link");
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] No app can open the link");
         }
     }
 

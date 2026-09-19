@@ -30,16 +30,27 @@ public class MyAffiliateDetails {
     private final String premiumUntil;
     private final List<RewardCode> rewardCodes;
 
-    /** An App Store one-time offer code granted to the referrer as a reward. */
+    /** A code granted to the referrer as a reward: an App Store offer code or a Google Play promo code. */
     public static final class RewardCode {
+        /** An App Store one-time offer code. Can only be redeemed on iOS. */
+        public static final String STORE_APP_STORE = "app_store";
+        /** A Google Play promo code, redeemed in the Play Store app. */
+        public static final String STORE_GOOGLE_PLAY = "google_play";
+
         private final String code;
         private final String redeemUrl;
         private final String grantedAt;
+        private final String store;
 
         public RewardCode(String code, String redeemUrl, String grantedAt) {
+            this(code, redeemUrl, grantedAt, null);
+        }
+
+        public RewardCode(String code, String redeemUrl, String grantedAt, String store) {
             this.code = code;
             this.redeemUrl = redeemUrl;
             this.grantedAt = grantedAt;
+            this.store = store == null || store.trim().isEmpty() ? STORE_APP_STORE : store.trim();
         }
 
         public String getCode() {
@@ -54,6 +65,20 @@ public class MyAffiliateDetails {
         /** When the code was granted, as an ISO 8601 string. May be empty. */
         public String getGrantedAt() {
             return grantedAt;
+        }
+
+        /**
+         * Which store the code is for: STORE_APP_STORE or STORE_GOOGLE_PLAY.
+         * Codes from older servers have no store and are App Store codes.
+         * Other values are passed through unchanged.
+         */
+        public String getStore() {
+            return store;
+        }
+
+        /** True for a Google Play promo code, which can be redeemed on Android. */
+        public boolean isGooglePlay() {
+            return STORE_GOOGLE_PLAY.equals(store);
         }
     }
 
@@ -185,8 +210,9 @@ public class MyAffiliateDetails {
     }
 
     /**
-     * App Store one-time offer codes granted as rewards, newest first. Never null.
-     * They can only be redeemed on iOS.
+     * Codes granted as rewards, newest first. Never null. Check getStore():
+     * App Store offer codes can only be redeemed on iOS, Google Play promo
+     * codes on Android.
      */
     public List<RewardCode> getRewardCodes() {
         return rewardCodes;

@@ -1010,7 +1010,7 @@ InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
 The screen handles everything itself:
 - **Not joined yet:** email and name fields (prefilled) and a "Get my link" button.
 - **Email already belongs to an affiliate** (for example after a reinstall or on a new phone): asks for the 6-digit code we email them, with "Send a new code".
-- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, "Free premium until {date}" while a referrer reward is active, and "Open my dashboard".
+- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, "Free premium until {date}" while a referrer reward is active, "Your rewards" with any Google Play promo codes (Copy and Redeem), and "Open my dashboard".
 
 Headline, reward text and colour come from your dashboard, so you can change the wording without an app release. You can override them in code:
 
@@ -1105,12 +1105,12 @@ InsertAffiliateManager.getMyAffiliateDetails(details -> {
     if (details != null) {
         int rewards = details.getRewardsGranted();
         Date premiumUntil = details.getPremiumUntilDate();  // null when none; getPremiumUntil() is the ISO string
-        List<MyAffiliateDetails.RewardCode> codes = details.getRewardCodes();  // App Store offer codes, newest first
+        List<MyAffiliateDetails.RewardCode> codes = details.getRewardCodes();  // reward codes, newest first
     }
 });
 ```
 
-`getRewardCodes()` holds App Store one-time offer codes (`getCode()`, `getRedeemUrl()`, `getGrantedAt()`). They can only be redeemed on iOS, so the drop-in screen does not show them on Android.
+`getRewardCodes()` holds reward codes (`getCode()`, `getRedeemUrl()`, `getStore()`, `getGrantedAt()`). `getStore()` is `"google_play"` for Google Play promo codes and `"app_store"` for App Store one-time offer codes (codes with no store are App Store codes); `isGooglePlay()` is a shortcut. The drop-in screen shows Google Play promo codes under "Your rewards", each with Copy and a Redeem button that opens the Play Store to redeem it. App Store codes can only be redeemed on iOS, so the drop-in screen keeps them hidden on Android.
 
 **How the connection works:** when a user joins, the server gives this device a private token, stored in private `SharedPreferences` (one per company code). It only lets the device read the user's own stats. If the app is reinstalled, the user enters their email again and confirms with the emailed code; their affiliate account, earnings and dashboard are unchanged.
 

@@ -273,6 +273,68 @@ public class InAppReferralsTest {
     }
 
     @Test
+    public void rewardCodes_parseStore() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails(
+            "{\"rewardCodes\":[" +
+            "{\"code\":\"PLAY1\",\"redeemUrl\":\"https://play.google.com/redeem?code=PLAY1\",\"store\":\"google_play\",\"grantedAt\":\"2026-09-19T10:00:00.000Z\"}," +
+            "{\"code\":\"APPLE1\",\"redeemUrl\":\"https://apps.apple.com/redeem?code=APPLE1\",\"store\":\"app_store\"}," +
+            "{\"code\":\"LEGACY\",\"redeemUrl\":\"https://apps.apple.com/redeem?code=LEGACY\"}," +
+            "{\"code\":\"BLANK\",\"store\":\"\"}," +
+            "{\"code\":\"NULLSTORE\",\"store\":null}," +
+            "{\"code\":\"FUTURE\",\"store\":\"amazon_appstore\"}]}");
+
+        List<MyAffiliateDetails.RewardCode> codes = details.getRewardCodes();
+        assertEquals(6, codes.size());
+
+        assertEquals(MyAffiliateDetails.RewardCode.STORE_GOOGLE_PLAY, codes.get(0).getStore());
+        assertTrue(codes.get(0).isGooglePlay());
+        assertEquals("https://play.google.com/redeem?code=PLAY1", codes.get(0).getRedeemUrl());
+
+        assertEquals(MyAffiliateDetails.RewardCode.STORE_APP_STORE, codes.get(1).getStore());
+        assertFalse(codes.get(1).isGooglePlay());
+
+        // Missing, blank or null store means an App Store code.
+        assertEquals(MyAffiliateDetails.RewardCode.STORE_APP_STORE, codes.get(2).getStore());
+        assertEquals(MyAffiliateDetails.RewardCode.STORE_APP_STORE, codes.get(3).getStore());
+        assertEquals(MyAffiliateDetails.RewardCode.STORE_APP_STORE, codes.get(4).getStore());
+
+        // Unknown stores pass through and are not treated as Google Play.
+        assertEquals("amazon_appstore", codes.get(5).getStore());
+        assertFalse(codes.get(5).isGooglePlay());
+    }
+
+    @Test
+    public void rewardCode_threeArgConstructorDefaultsToAppStore() {
+        MyAffiliateDetails.RewardCode code = new MyAffiliateDetails.RewardCode("X", "https://x", "");
+        assertEquals(MyAffiliateDetails.RewardCode.STORE_APP_STORE, code.getStore());
+        assertFalse(code.isGooglePlay());
+    }
+
+    @Test
+    public void googlePlayRewardCodes_keepsOnlyPlayCodesInOrder() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails(
+            "{\"rewardCodes\":[" +
+            "{\"code\":\"PLAY_NEW\",\"store\":\"google_play\"}," +
+            "{\"code\":\"APPLE\",\"store\":\"app_store\"}," +
+            "{\"code\":\"LEGACY\"}," +
+            "{\"code\":\"FUTURE\",\"store\":\"amazon_appstore\"}," +
+            "{\"code\":\"PLAY_OLD\",\"store\":\"google_play\"}]}");
+
+        List<MyAffiliateDetails.RewardCode> play = InAppReferrals.googlePlayRewardCodes(details.getRewardCodes());
+        assertEquals(2, play.size());
+        assertEquals("PLAY_NEW", play.get(0).getCode());
+        assertEquals("PLAY_OLD", play.get(1).getCode());
+    }
+
+    @Test
+    public void googlePlayRewardCodes_emptyWhenNoneOrNull() {
+        MyAffiliateDetails appleOnly = InAppReferrals.parseMyAffiliateDetails(
+            "{\"rewardCodes\":[{\"code\":\"APPLE\"}]}");
+        assertTrue(InAppReferrals.googlePlayRewardCodes(appleOnly.getRewardCodes()).isEmpty());
+        assertTrue(InAppReferrals.googlePlayRewardCodes(null).isEmpty());
+    }
+
+    @Test
     public void premiumUntil_acceptsMillisAndFirestoreTimestamps() {
         MyAffiliateDetails millis = InAppReferrals.parseMyAffiliateDetails("{\"premiumUntil\":1792411200000}");
         assertEquals(1792411200000L, millis.getPremiumUntilDate().getTime());

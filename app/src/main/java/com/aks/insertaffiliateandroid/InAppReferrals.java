@@ -271,7 +271,8 @@ final class InAppReferrals {
         return null;
     }
 
-    // rewardCodes: [{ code, redeemUrl, grantedAt }]. Entries without a code are skipped.
+    // rewardCodes: [{ code, redeemUrl, store, grantedAt }]. Entries without a code are skipped.
+    // A missing store means an App Store code.
     private static List<MyAffiliateDetails.RewardCode> rewardCodes(JsonObject json) {
         List<MyAffiliateDetails.RewardCode> codes = new ArrayList<>();
         JsonElement value = json == null ? null : json.get("rewardCodes");
@@ -283,9 +284,19 @@ final class InAppReferrals {
             String code = string(entry, "code");
             if (code.isEmpty()) continue;
             String grantedAt = timestamp(entry, "grantedAt");
-            codes.add(new MyAffiliateDetails.RewardCode(code, string(entry, "redeemUrl"), grantedAt == null ? "" : grantedAt));
+            codes.add(new MyAffiliateDetails.RewardCode(code, string(entry, "redeemUrl"), grantedAt == null ? "" : grantedAt, string(entry, "store")));
         }
         return codes;
+    }
+
+    /** The reward codes that can be redeemed on Android (Google Play promo codes), in their original order. */
+    static List<MyAffiliateDetails.RewardCode> googlePlayRewardCodes(List<MyAffiliateDetails.RewardCode> codes) {
+        List<MyAffiliateDetails.RewardCode> playCodes = new ArrayList<>();
+        if (codes == null) return playCodes;
+        for (MyAffiliateDetails.RewardCode code : codes) {
+            if (code != null && code.isGooglePlay()) playCodes.add(code);
+        }
+        return playCodes;
     }
 
     // MARK: Share text
