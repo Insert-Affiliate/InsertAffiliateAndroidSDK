@@ -1569,8 +1569,9 @@ public class InsertAffiliateManager {
     public static void createAffiliateForUser(String email, String name, ReferrerAccountOptions options, AffiliateUserResultCallback callback) {
         JsonObject body = referrerRequestBody(email, name, options);
         if (body == null) {
-            deliverResult(callback, AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
-                "Initialise the SDK with a company code first."));
+            AffiliateUserResult notInitialized = AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
+                "Initialise the SDK with a company code first.");
+            new Thread(() -> deliverResult(callback, notInitialized)).start();
             return;
         }
         verboseLog("Creating affiliate for app user...");
@@ -1610,8 +1611,9 @@ public class InsertAffiliateManager {
     public static void verifyAffiliateCode(String email, String code, String name, ReferrerAccountOptions options, AffiliateUserResultCallback callback) {
         JsonObject body = referrerRequestBody(email, name, options);
         if (body == null) {
-            deliverResult(callback, AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
-                "Initialise the SDK with a company code first."));
+            AffiliateUserResult notInitialized = AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
+                "Initialise the SDK with a company code first.");
+            new Thread(() -> deliverResult(callback, notInitialized)).start();
             return;
         }
         body.addProperty("code", InAppReferrals.normalizeEmailCode(code));
@@ -1627,7 +1629,7 @@ public class InsertAffiliateManager {
      */
     public static void getMyAffiliateDetails(MyAffiliateDetailsCallback callback) {
         loadMyAffiliateDetails((details, errorCode) -> {
-            if (callback != null) callback.onMyAffiliateDetailsReceived(details);
+            deliverDetails(callback, details);
         });
     }
 
@@ -1645,7 +1647,7 @@ public class InsertAffiliateManager {
         String token = getReferrerToken();
         if (token == null || token.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot set referrer account: user is not an affiliate yet. Call createAffiliateForUser first.");
-            deliverSaved(callback, false);
+            new Thread(() -> deliverSaved(callback, false)).start();
             return;
         }
         JsonObject body = InAppReferrals.identityBody(options, referrerDeviceId());
@@ -1693,7 +1695,7 @@ public class InsertAffiliateManager {
     public static void getReferralProgramConfig(ReferralProgramConfigCallback callback) {
         if (companyCode == null || companyCode.isEmpty()) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot get referral program config: no company code available");
-            if (callback != null) callback.onConfigReceived(null);
+            new Thread(() -> deliverConfig(callback, null)).start();
             return;
         }
         new Thread(() -> {
@@ -1710,7 +1712,7 @@ public class InsertAffiliateManager {
             } else {
                 Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching referral program config: HTTP " + response.status);
             }
-            if (callback != null) callback.onConfigReceived(config);
+            deliverConfig(callback, config);
         }).start();
     }
 
@@ -1790,7 +1792,7 @@ public class InsertAffiliateManager {
         String token = getReferrerToken();
         if (token == null || token.isEmpty()) {
             verboseLog("No referrer token stored, user is not an affiliate on this device");
-            callback.onLoaded(null, NOT_ENROLLED);
+            new Thread(() -> callback.onLoaded(null, NOT_ENROLLED)).start();
             return;
         }
         new Thread(() -> {
@@ -1863,6 +1865,24 @@ public class InsertAffiliateManager {
             callback.onResult(result);
         } catch (Exception e) {
             Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in affiliate result callback: " + e.getMessage());
+        }
+    }
+
+    private static void deliverDetails(MyAffiliateDetailsCallback callback, MyAffiliateDetails details) {
+        if (callback == null) return;
+        try {
+            callback.onMyAffiliateDetailsReceived(details);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in my affiliate details callback: " + e.getMessage());
+        }
+    }
+
+    private static void deliverConfig(ReferralProgramConfigCallback callback, ReferralProgramConfig config) {
+        if (callback == null) return;
+        try {
+            callback.onConfigReceived(config);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in referral program config callback: " + e.getMessage());
         }
     }
 
