@@ -1022,11 +1022,65 @@ Headline, reward text and colour come from your dashboard, so you can change the
 | `setHeadline(String)` / `setRewardText(String)` | Override the dashboard copy. Default headline: "Refer a friend" |
 | `setTypeface(Typeface)` / `setCornerRadius(float dp)` | Match your app's font and shape |
 | `setOnClose(Runnable)` | Called on the main thread when the screen closes |
+| `setStrings(Map<String, String>)` / `setString(key, value)` | Replace any label on the screen, keyed by `ReferralStrings` (see Translating the screen) |
 | `setAppUserId(String)` / `setPlayPurchaseToken(String)` | The user's RevenueCat / Adapty app user id and own Google Play purchase token, for automatic referrer rewards. Sent when they join; if they already joined, saved once each time the screen opens (see Automatic referrer rewards) |
 
 The screen is built with standard Android views, so it adds no dependencies and works with any app theme (light and dark).
 
-**Build your own UI:**
+**Translating the screen:** every label has an English default that you can replace with `setStrings` (a map) or `setString` (one key). Keys you leave out keep their default, a blank override falls back to the default, and unknown keys are ignored. Keep any `{email}` or `{date}` placeholder in your text: the SDK fills them in.
+
+```java
+Map<String, String> strings = new HashMap<>();
+strings.put(ReferralStrings.EMAIL_LABEL, "Courriel");
+strings.put(ReferralStrings.NAME_LABEL, "Nom");
+strings.put(ReferralStrings.JOIN_BUTTON, "Obtenir mon lien");
+strings.put(ReferralStrings.SHARE_BUTTON, "Partager");
+strings.put(ReferralStrings.PREMIUM_UNTIL, "Premium gratuit jusqu'au {date}");
+strings.put(ReferralStrings.ERROR_INVALID_CODE, "Ce code est incorrect ou a expire.");
+
+InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
+    .setEmail(currentUser.getEmail())
+    .setStrings(strings)
+    .setString(ReferralStrings.CLOSE_BUTTON, "Fermer"));
+```
+
+| Key (`ReferralStrings.`) | String value | Default |
+|---|---|---|
+| `EMAIL_LABEL` | `emailLabel` | Email |
+| `NAME_LABEL` | `nameLabel` | Name |
+| `JOIN_BUTTON` | `joinButton` | Get my link |
+| `CODE_LABEL` | `codeLabel` | 6-digit code |
+| `CODE_SENT_NOTICE` | `codeSentNotice` | We sent a 6-digit code to {email}. Enter it below to connect your account. |
+| `VERIFY_BUTTON` | `verifyButton` | Verify |
+| `RESEND_BUTTON` | `resendButton` | Send a new code |
+| `CODE_RESENT_NOTICE` | `codeResentNotice` | New code sent |
+| `DIFFERENT_EMAIL_BUTTON` | `differentEmailButton` | Use a different email |
+| `CODE_LABEL_TITLE` | `codeLabelTitle` | Your code |
+| `LINK_LABEL_TITLE` | `linkLabelTitle` | Your link |
+| `COPY_BUTTON` | `copyButton` | Copy |
+| `COPIED_NOTICE` | `copiedNotice` | Copied |
+| `SHARE_BUTTON` | `shareButton` | Share |
+| `REFERRALS_LABEL` | `referralsLabel` | Referrals |
+| `EARNED_LABEL` | `earnedLabel` | Earned |
+| `PREMIUM_UNTIL` | `premiumUntil` | Free premium until {date} |
+| `REWARDS_HEADING` | `rewardsHeading` | Your rewards |
+| `REDEEM_BUTTON` | `redeemButton` | Redeem |
+| `DASHBOARD_LINK` | `dashboardLink` | Open my dashboard |
+| `CLOSE_BUTTON` | `closeButton` | Close |
+| `TRY_AGAIN_BUTTON` | `tryAgainButton` | Try again |
+| `BUSY_BUTTON` | `busyButton` | Please wait... |
+| `ERROR_PROGRAM_DISABLED` | `errorProgramDisabled` | Referrals are not available in this app right now. |
+| `ERROR_AFFILIATE_LIMIT_REACHED` | `errorAffiliateLimitReached` | The referral program is full right now. Please try again later. |
+| `ERROR_INVALID_CODE` | `errorInvalidCode` | That code is wrong or has expired. |
+| `ERROR_TOO_MANY_CODES` | `errorTooManyCodes` | Too many codes requested. Please wait a while and try again. |
+| `ERROR_RATE_LIMITED` | `errorRateLimited` | Too many attempts. Please try again later. |
+| `ERROR_INVALID_EMAIL` | `errorInvalidEmail` | Please enter a valid email address. |
+| `ERROR_NETWORK` | `errorNetwork` | Could not connect. Check your connection and try again. |
+| `ERROR_SERVER` | `errorServer` | Something went wrong. Please try again. |
+
+The headline and reward text are not in this list: they come from your dashboard and are overridden with `setHeadline` and `setRewardText`. An error code with no key of its own (for example `COMPANY_NOT_FOUND`) shows `ERROR_SERVER`.
+
+**Build your own screen:**
 
 All callbacks below run on a background thread (like `getAffiliateDetails`). Use `runOnUiThread` to update your UI.
 
@@ -1085,6 +1139,19 @@ InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}
 | `getReferralProgramConfig(callback)` | Your dashboard settings: `enabled`, `companyName`, `referralTrigger`, `headline`, `rewardText`, `primaryColor` |
 | `shareReferralLink(activity, message)` | Opens the share sheet. `message` is optional |
 | `showReferAFriend(activity, options)` | Presents the drop-in screen. `options` is optional |
+
+**Order to call them in, and the states to handle:**
+
+1. `getReferralProgramConfig(callback)`: read `isEnabled()` first. When it is off, show nothing. `getCompanyName()`, `getHeadline()`, `getRewardText()` and `getPrimaryColor()` are your dashboard copy, and `getReferralTrigger()` says what counts as a referral.
+2. `isUserAnAffiliate()`: a local check, no network. **Not enrolled:** ask for an email and name, then call `createAffiliateForUser`.
+3. **Code needed:** `result.isVerificationRequired()` means we emailed a 6-digit code. Ask for it and call `verifyAffiliateCode`. Call `createAffiliateForUser` again for a new code. Spaces, dashes and digits in any script are accepted.
+4. **Enrolled:** `getMyAffiliateDetails(callback)` for `getAffiliateShortCode()`, `getDeeplinkUrl()`, `getReferralCount()`, `getTotalEarned()` with `getCurrency()` and `getDashboardUrl()`. Show the link when it starts with `http`, otherwise show the code (Short Code Only apps).
+5. **Sharing:** `shareReferralLink(activity, message)` opens the system share sheet, or build your own text from the code and link.
+6. **Rewards:** `getRewardsGranted()`, `getPremiumUntilDate()` (null when none) and `getRewardCodes()`. Show only codes where `isGooglePlay()` is true, since App Store codes cannot be redeemed on Android, and open `getRedeemUrl()` for Redeem.
+7. **Accounts:** `setReferrerAccount(options, callback)` whenever the user subscribes or logs in after joining.
+8. **Signing out:** `signOutAffiliate()` on app logout, which disconnects this device only.
+
+**Errors:** every failure from `createAffiliateForUser` and `verifyAffiliateCode` arrives as `result.getErrorCode()` (the codes listed above), so you can word each one yourself. `getMyAffiliateDetails` and `getReferralProgramConfig` pass `null` on failure: use `isUserAnAffiliate()` to tell "not connected" from a failed request. If the server says the connection is no longer valid, the SDK clears it, so `isUserAnAffiliate()` then returns false and the user joins again with an email code.
 
 **Share text:** with a web link the SDK shares `"<message> <link>"` (default message `"Try {your app name}:"`). For Short Code Only apps it shares `"Use my code {code} in {your app name}"`.
 
