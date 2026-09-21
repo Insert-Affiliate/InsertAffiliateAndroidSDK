@@ -379,27 +379,7 @@ final class InAppReferrals {
 
     /** User-facing message for an error code from createAffiliateForUser or verifyAffiliateCode. */
     static String messageForError(String errorCode) {
-        if (errorCode == null) {
-            return "Something went wrong. Please try again.";
-        }
-        switch (errorCode) {
-            case "PROGRAM_DISABLED":
-                return "Referrals are not available in this app right now.";
-            case "AFFILIATE_LIMIT_REACHED":
-                return "The referral program is full right now. Please try again later.";
-            case "INVALID_CODE":
-                return "That code is wrong or has expired.";
-            case "TOO_MANY_CODES":
-                return "Too many codes requested. Please wait a while and try again.";
-            case "RATE_LIMITED":
-                return "Too many attempts. Please try again later.";
-            case "INVALID_EMAIL":
-                return "Please enter a valid email address.";
-            case AffiliateUserResult.ERROR_NETWORK:
-                return "Could not connect. Check your connection and try again.";
-            default:
-                return "Something went wrong. Please try again.";
-        }
+        return ReferralStrings.defaultValue(ReferralStrings.errorKey(errorCode));
     }
 
     /** First non-empty value, or "" when all are empty. */

@@ -3,6 +3,9 @@ package com.aks.insertaffiliateandroid;
 import android.graphics.Color;
 import android.graphics.Typeface;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Options for showReferAFriend. Every option is optional; setters return this
  * so they can be chained:
@@ -24,6 +27,7 @@ public class ReferAFriendOptions {
     private Runnable onClose;
     private String appUserId;
     private String playPurchaseToken;
+    private final Map<String, String> strings = new HashMap<>();
 
     /** Prefills the email field, usually with your logged-in user's email. */
     public ReferAFriendOptions setEmail(String email) {
@@ -147,6 +151,49 @@ public class ReferAFriendOptions {
 
     public String getPlayPurchaseToken() {
         return playPurchaseToken;
+    }
+
+    /**
+     * Replaces the text on the screen, keyed by the ReferralStrings constants,
+     * so you can translate it or reword it. Keys you leave out keep their
+     * English default, and unknown keys are ignored. Repeated calls add to what
+     * is already set.
+     *
+     *   Map&lt;String, String&gt; strings = new HashMap&lt;&gt;();
+     *   strings.put(ReferralStrings.JOIN_BUTTON, "Obtenir mon lien");
+     *   options.setStrings(strings);
+     *
+     * Keep any placeholder a value carries: {email} in codeSentNotice and
+     * {date} in premiumUntil.
+     */
+    public ReferAFriendOptions setStrings(Map<String, String> strings) {
+        if (strings != null) {
+            this.strings.putAll(strings);
+        }
+        return this;
+    }
+
+    /** Replaces one piece of text, for example setString(ReferralStrings.SHARE_BUTTON, "Send to a friend"). */
+    public ReferAFriendOptions setString(String key, String value) {
+        if (key != null) {
+            this.strings.put(key, value);
+        }
+        return this;
+    }
+
+    /** The overrides set so far. Never null. */
+    public Map<String, String> getStrings() {
+        return strings;
+    }
+
+    // The app's text for a key, or the English default.
+    String string(String key) {
+        return ReferralStrings.resolve(strings, key);
+    }
+
+    // The app's text for a server error code, or the English default.
+    String errorString(String errorCode) {
+        return string(ReferralStrings.errorKey(errorCode));
     }
 
     // The referrer's accounts for createAffiliateForUser, verifyAffiliateCode

@@ -50,6 +50,9 @@ import java.util.Locale;
  * "Free premium until" while a referrer reward is active, Google Play
  * reward codes with "Redeem", "Open my dashboard"). Nothing is gated behind sharing and only the system
  * share sheet is used.
+ *
+ * Every label comes from ReferralStrings, so an app can translate or reword it
+ * with ReferAFriendOptions.setStrings.
  */
 final class ReferAFriendDialog {
     private final Activity activity;
@@ -200,8 +203,8 @@ final class ReferAFriendDialog {
     private void showLoadError(String errorCode) {
         content.removeAllViews();
         addHeader();
-        addMessage(InAppReferrals.messageForError(errorCode), errorColor);
-        Button retry = addPrimaryButton("Try again");
+        addMessage(options.errorString(errorCode), errorColor);
+        Button retry = addPrimaryButton(string(ReferralStrings.TRY_AGAIN_BUTTON));
         retry.setOnClickListener(v -> {
             showLoading();
             load();
@@ -214,37 +217,38 @@ final class ReferAFriendDialog {
         addRewardText();
 
         if (config != null && !config.isEnabled()) {
-            addMessage(InAppReferrals.messageForError("PROGRAM_DISABLED"), secondaryTextColor);
+            addMessage(options.errorString("PROGRAM_DISABLED"), secondaryTextColor);
             return;
         }
 
-        EditText emailField = addField("Email", email,
+        EditText emailField = addField(string(ReferralStrings.EMAIL_LABEL), email,
             InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-        EditText nameField = addField("Name", name,
+        EditText nameField = addField(string(ReferralStrings.NAME_LABEL), name,
             InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PERSON_NAME | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         TextView errorView = addError(error);
 
-        Button join = addPrimaryButton("Get my link");
+        String joinLabel = string(ReferralStrings.JOIN_BUTTON);
+        Button join = addPrimaryButton(joinLabel);
         join.setOnClickListener(v -> {
             email = emailField.getText().toString().trim();
             name = nameField.getText().toString().trim();
             if (email.isEmpty() || !email.contains("@")) {
-                setError(errorView, InAppReferrals.messageForError("INVALID_EMAIL"));
+                setError(errorView, options.errorString("INVALID_EMAIL"));
                 return;
             }
-            setBusy(join, true, "Get my link");
-            InsertAffiliateManager.createAffiliateForUser(email, name, options.referrerAccount(), result -> runOnUi(() -> handleResult(result, join, "Get my link", errorView)));
+            setBusy(join, true, joinLabel);
+            InsertAffiliateManager.createAffiliateForUser(email, name, options.referrerAccount(), result -> runOnUi(() -> handleResult(result, join, joinLabel, errorView)));
         });
     }
 
     private void showCodeStep(String error) {
         content.removeAllViews();
         addHeader();
-        addMessage("We sent a 6-digit code to " + email + ". Enter it below to connect your account.", secondaryTextColor);
+        addMessage(string(ReferralStrings.CODE_SENT_NOTICE).replace("{email}", email), secondaryTextColor);
 
         // Text input with a number keyboard, so pasted "123-456" and other
         // scripts' digits reach normalizeEmailCode instead of being filtered out.
-        EditText codeField = addField("6-digit code", "", InputType.TYPE_CLASS_TEXT);
+        EditText codeField = addField(string(ReferralStrings.CODE_LABEL), "", InputType.TYPE_CLASS_TEXT);
         codeField.setRawInputType(InputType.TYPE_CLASS_NUMBER);
         codeField.setFilters(new InputFilter[]{new InputFilter.LengthFilter(20)});
         codeField.setGravity(Gravity.CENTER);
@@ -252,7 +256,8 @@ final class ReferAFriendDialog {
         codeField.setLetterSpacing(0.3f);
         TextView errorView = addError(error);
 
-        Button verify = addPrimaryButton("Verify");
+        String verifyLabel = string(ReferralStrings.VERIFY_BUTTON);
+        Button verify = addPrimaryButton(verifyLabel);
         setEnabled(verify, false);
         codeField.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -264,28 +269,29 @@ final class ReferAFriendDialog {
         verify.setOnClickListener(v -> {
             String code = InAppReferrals.normalizeEmailCode(codeField.getText().toString());
             if (code.length() != InAppReferrals.EMAIL_CODE_LENGTH) {
-                setError(errorView, InAppReferrals.messageForError("INVALID_CODE"));
+                setError(errorView, options.errorString("INVALID_CODE"));
                 return;
             }
-            setBusy(verify, true, "Verify");
-            InsertAffiliateManager.verifyAffiliateCode(email, code, name, options.referrerAccount(), result -> runOnUi(() -> handleResult(result, verify, "Verify", errorView)));
+            setBusy(verify, true, verifyLabel);
+            InsertAffiliateManager.verifyAffiliateCode(email, code, name, options.referrerAccount(), result -> runOnUi(() -> handleResult(result, verify, verifyLabel, errorView)));
         });
 
-        Button resend = addTextButton("Send a new code");
+        String resendLabel = string(ReferralStrings.RESEND_BUTTON);
+        Button resend = addTextButton(resendLabel);
         resend.setOnClickListener(v -> {
-            setBusy(resend, true, "Send a new code");
+            setBusy(resend, true, resendLabel);
             InsertAffiliateManager.createAffiliateForUser(email, name, options.referrerAccount(), result -> runOnUi(() -> {
-                setBusy(resend, false, "Send a new code");
+                setBusy(resend, false, resendLabel);
                 if (result.isVerificationRequired()) {
                     setError(errorView, null);
-                    toast("New code sent");
+                    toast(string(ReferralStrings.CODE_RESENT_NOTICE));
                 } else {
-                    handleResult(result, resend, "Send a new code", errorView);
+                    handleResult(result, resend, resendLabel, errorView);
                 }
             }));
         });
 
-        Button changeEmail = addTextButton("Use a different email");
+        Button changeEmail = addTextButton(string(ReferralStrings.DIFFERENT_EMAIL_BUTTON));
         changeEmail.setOnClickListener(v -> showJoin(null));
     }
 
@@ -297,7 +303,7 @@ final class ReferAFriendDialog {
             showCodeStep(null);
         } else {
             setBusy(button, false, label);
-            setError(errorView, InAppReferrals.messageForError(result.getErrorCode()));
+            setError(errorView, options.errorString(result.getErrorCode()));
         }
     }
 
@@ -310,15 +316,15 @@ final class ReferAFriendDialog {
         String shareText = InAppReferrals.buildShareText(deeplinkUrl, shortCode, companyName, options.getShareMessage());
 
         if (shortCode != null && !shortCode.isEmpty()) {
-            addLabel("Your code");
+            addLabel(string(ReferralStrings.CODE_LABEL_TITLE));
             addCopyRow(shortCode, true);
         }
         if (InAppReferrals.isWebLink(deeplinkUrl)) {
-            addLabel("Your link");
+            addLabel(string(ReferralStrings.LINK_LABEL_TITLE));
             addCopyRow(deeplinkUrl, false);
         }
 
-        Button share = addPrimaryButton("Share");
+        Button share = addPrimaryButton(string(ReferralStrings.SHARE_BUTTON));
         share.setOnClickListener(v -> InsertAffiliateManager.openShareSheet(activity, shareText));
 
         if (details != null) {
@@ -327,7 +333,7 @@ final class ReferAFriendDialog {
             addRewardCodes(details);
             String dashboardUrl = details.getDashboardUrl();
             if (dashboardUrl != null && !dashboardUrl.isEmpty()) {
-                Button dashboard = addTextButton("Open my dashboard");
+                Button dashboard = addTextButton(string(ReferralStrings.DASHBOARD_LINK));
                 dashboard.setOnClickListener(v -> openUrl(dashboardUrl));
             }
         }
@@ -343,9 +349,10 @@ final class ReferAFriendDialog {
         TextView title = text(headline(), 22, textColor, true);
         row.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView close = text("Close", 15, secondaryTextColor, false);
+        String closeLabel = string(ReferralStrings.CLOSE_BUTTON);
+        TextView close = text(closeLabel, 15, secondaryTextColor, false);
         close.setPadding(dp(12), dp(8), 0, dp(8));
-        close.setContentDescription("Close");
+        close.setContentDescription(closeLabel);
         close.setOnClickListener(v -> dialog.dismiss());
         row.addView(close);
 
@@ -385,7 +392,7 @@ final class ReferAFriendDialog {
         valueView.setTextIsSelectable(true);
         row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button copy = addTextButtonTo(row, "Copy");
+        Button copy = addTextButtonTo(row, string(ReferralStrings.COPY_BUTTON));
         copy.setOnClickListener(v -> copyToClipboard(value));
 
         LinearLayout.LayoutParams params = matchWidth();
@@ -399,9 +406,9 @@ final class ReferAFriendDialog {
         strip.setPadding(dp(8), dp(14), dp(8), dp(14));
         strip.setBackground(rounded(fieldColor));
 
-        strip.addView(stat(String.valueOf(details.getReferralCount()), "Referrals"),
+        strip.addView(stat(String.valueOf(details.getReferralCount()), string(ReferralStrings.REFERRALS_LABEL)),
             new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        strip.addView(stat(formatMoney(details.getTotalEarned(), details.getCurrency()), "Earned"),
+        strip.addView(stat(formatMoney(details.getTotalEarned(), details.getCurrency()), string(ReferralStrings.EARNED_LABEL)),
             new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         LinearLayout.LayoutParams params = matchWidth();
@@ -414,14 +421,14 @@ final class ReferAFriendDialog {
             return;
         }
         String date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(details.getPremiumUntilDate());
-        addMessage("Free premium until " + date, textColor);
+        addMessage(string(ReferralStrings.PREMIUM_UNTIL).replace("{date}", date), textColor);
     }
 
     // Only Google Play promo codes: App Store offer codes can't be redeemed on Android.
     private void addRewardCodes(MyAffiliateDetails details) {
         List<MyAffiliateDetails.RewardCode> codes = InAppReferrals.googlePlayRewardCodes(details.getRewardCodes());
         if (codes.isEmpty()) return;
-        addLabel("Your rewards");
+        addLabel(string(ReferralStrings.REWARDS_HEADING));
         for (MyAffiliateDetails.RewardCode reward : codes) {
             addRewardRow(reward);
         }
@@ -440,12 +447,12 @@ final class ReferAFriendDialog {
         codeView.setTextIsSelectable(true);
         row.addView(codeView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button copy = addTextButtonTo(row, "Copy");
+        Button copy = addTextButtonTo(row, string(ReferralStrings.COPY_BUTTON));
         copy.setOnClickListener(v -> copyToClipboard(reward.getCode()));
 
         String redeemUrl = reward.getRedeemUrl();
         if (redeemUrl != null && !redeemUrl.isEmpty()) {
-            Button redeem = addTextButtonTo(row, "Redeem");
+            Button redeem = addTextButtonTo(row, string(ReferralStrings.REDEEM_BUTTON));
             redeem.setOnClickListener(v -> openUrl(redeemUrl));
         }
 
@@ -560,7 +567,7 @@ final class ReferAFriendDialog {
 
     private void setBusy(Button button, boolean busy, String label) {
         setEnabled(button, !busy);
-        button.setText(busy ? "Please wait..." : label);
+        button.setText(busy ? string(ReferralStrings.BUSY_BUTTON) : label);
     }
 
     private void setEnabled(Button button, boolean enabled) {
@@ -576,7 +583,7 @@ final class ReferAFriendDialog {
         clipboard.setPrimaryClip(ClipData.newPlainText("Referral", value));
         // Android 13+ shows its own confirmation.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            toast("Copied");
+            toast(string(ReferralStrings.COPIED_NOTICE));
         }
     }
 
@@ -599,6 +606,11 @@ final class ReferAFriendDialog {
             if (closed || activity.isFinishing() || activity.isDestroyed() || !dialog.isShowing()) return;
             action.run();
         });
+    }
+
+    // The app's text for a key, or our English default.
+    private String string(String key) {
+        return options.string(key);
     }
 
     private String headline() {
