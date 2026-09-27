@@ -989,6 +989,208 @@ Long expiryTimestamp = InsertAffiliateManager.getAffiliateExpiryTimestamp(this);
 
 </details>
 
+<details>
+<summary><h3>In-App Referrals (Refer a Friend)</h3></summary>
+
+Turn your own users into affiliates from inside your app, show them a ready-made "Refer a friend" screen, and read their referral stats so you can reward them.
+
+In-app referrers are normal affiliates: they get the same dashboard login, commission and payouts as any other affiliate, and they take a seat like any other affiliate.
+
+**Before you start:** switch on In-app referrals in your [Insert Affiliate dashboard](https://app.insertaffiliate.com) and choose what counts as a referral (install, a tracked event, or a purchase). Initialise the SDK with `InsertAffiliateManager.init(...)` as usual.
+
+**Drop-in screen (quickest):**
+
+```java
+InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
+    .setEmail(currentUser.getEmail())   // prefill, usually your logged-in user
+    .setName(currentUser.getName())
+    .setOnClose(() -> Log.i("MyApp", "Refer a friend closed")));
+```
+
+The screen handles everything itself:
+- **Not joined yet:** email and name fields (prefilled) and a "Get my link" button.
+- **Email already belongs to an affiliate** (for example after a reinstall or on a new phone, unless Auto Backup restored the connection): asks for the 6-digit code we email them, with "Send a new code".
+- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, "Free premium until {date}" while a referrer reward is active, "Your rewards" with any Google Play promo codes (Copy and Redeem), and "Open my dashboard".
+
+Headline, reward text and colour come from your dashboard, so you can change the wording without an app release. You can override them in code:
+
+| Option | Description |
+|---|---|
+| `setEmail(String)` / `setName(String)` | Prefill the join form |
+| `setShareMessage(String)` | Text shared with the link. May use `{link}` and `{code}` placeholders |
+| `setPrimaryColor(int)` / `setPrimaryColor(String)` | Button colour. Order: this option, then your dashboard colour, then `#6A0DAD` |
+| `setHeadline(String)` / `setRewardText(String)` | Override the dashboard copy. Default headline: "Refer a friend" |
+| `setTypeface(Typeface)` / `setCornerRadius(float dp)` | Match your app's font and shape |
+| `setOnClose(Runnable)` | Called on the main thread when the screen closes |
+| `setStrings(Map<String, String>)` / `setString(key, value)` | Replace any label on the screen, keyed by `ReferralStrings` (see Translating the screen) |
+| `setAppUserId(String)` / `setPlayPurchaseToken(String)` | The user's RevenueCat / Adapty app user id and own Google Play purchase token, for automatic referrer rewards. Sent when they join; if they already joined, saved once each time the screen opens (see Automatic referrer rewards) |
+
+The screen is built with standard Android views, so it adds no dependencies and works with any app theme (light and dark).
+
+**Translating the screen:** every label has an English default that you can replace with `setStrings` (a map) or `setString` (one key). Keys you leave out keep their default, a blank override falls back to the default, and unknown keys are ignored. Keep any `{email}` or `{date}` placeholder in your text: the SDK fills them in.
+
+```java
+Map<String, String> strings = new HashMap<>();
+strings.put(ReferralStrings.EMAIL_LABEL, "Courriel");
+strings.put(ReferralStrings.NAME_LABEL, "Nom");
+strings.put(ReferralStrings.JOIN_BUTTON, "Obtenir mon lien");
+strings.put(ReferralStrings.SHARE_BUTTON, "Partager");
+strings.put(ReferralStrings.PREMIUM_UNTIL, "Premium gratuit jusqu'au {date}");
+strings.put(ReferralStrings.ERROR_INVALID_CODE, "Ce code est incorrect ou a expire.");
+
+InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
+    .setEmail(currentUser.getEmail())
+    .setStrings(strings)
+    .setString(ReferralStrings.CLOSE_BUTTON, "Fermer"));
+```
+
+| Key (`ReferralStrings.`) | String value | Default |
+|---|---|---|
+| `EMAIL_LABEL` | `emailLabel` | Email |
+| `NAME_LABEL` | `nameLabel` | Name |
+| `JOIN_BUTTON` | `joinButton` | Get my link |
+| `CODE_LABEL` | `codeLabel` | 6-digit code |
+| `CODE_SENT_NOTICE` | `codeSentNotice` | We sent a 6-digit code to {email}. Enter it below to connect your account. |
+| `VERIFY_BUTTON` | `verifyButton` | Verify |
+| `RESEND_BUTTON` | `resendButton` | Send a new code |
+| `CODE_RESENT_NOTICE` | `codeResentNotice` | New code sent |
+| `DIFFERENT_EMAIL_BUTTON` | `differentEmailButton` | Use a different email |
+| `CODE_LABEL_TITLE` | `codeLabelTitle` | Your code |
+| `LINK_LABEL_TITLE` | `linkLabelTitle` | Your link |
+| `COPY_BUTTON` | `copyButton` | Copy |
+| `COPIED_NOTICE` | `copiedNotice` | Copied |
+| `SHARE_BUTTON` | `shareButton` | Share |
+| `REFERRALS_LABEL` | `referralsLabel` | Referrals |
+| `EARNED_LABEL` | `earnedLabel` | Earned |
+| `PREMIUM_UNTIL` | `premiumUntil` | Free premium until {date} |
+| `REWARDS_HEADING` | `rewardsHeading` | Your rewards |
+| `REDEEM_BUTTON` | `redeemButton` | Redeem |
+| `DASHBOARD_LINK` | `dashboardLink` | Open my dashboard |
+| `CLOSE_BUTTON` | `closeButton` | Close |
+| `TRY_AGAIN_BUTTON` | `tryAgainButton` | Try again |
+| `BUSY_BUTTON` | `busyButton` | Please wait... |
+| `ERROR_PROGRAM_DISABLED` | `errorProgramDisabled` | Referrals are not available in this app right now. |
+| `ERROR_AFFILIATE_LIMIT_REACHED` | `errorAffiliateLimitReached` | The referral program is full right now. Please try again later. |
+| `ERROR_INVALID_CODE` | `errorInvalidCode` | That code is wrong or has expired. |
+| `ERROR_TOO_MANY_CODES` | `errorTooManyCodes` | Too many codes requested. Please wait a while and try again. |
+| `ERROR_RATE_LIMITED` | `errorRateLimited` | Too many attempts. Please try again later. |
+| `ERROR_INVALID_EMAIL` | `errorInvalidEmail` | Please enter a valid email address. |
+| `ERROR_NETWORK` | `errorNetwork` | Could not connect. Check your connection and try again. |
+| `ERROR_SERVER` | `errorServer` | Something went wrong. Please try again. |
+
+The headline and reward text are not in this list: they come from your dashboard and are overridden with `setHeadline` and `setRewardText`. An error code with no key of its own (for example `COMPANY_NOT_FOUND`) shows `ERROR_SERVER`.
+
+**Build your own screen:**
+
+All callbacks below run on a background thread (like `getAffiliateDetails`). Use `runOnUiThread` to update your UI.
+
+```java
+// 1. Make the user an affiliate (usually with your logged-in user's email)
+InsertAffiliateManager.createAffiliateForUser(email, name, result -> {
+    if (result.isSuccess()) {
+        // status "created": this device is now connected
+        String link = result.getAffiliate().getDeeplinkUrl();
+    } else if (result.isVerificationRequired()) {
+        // Email already belongs to an affiliate: we emailed them a 6-digit code.
+        // Ask for it, then call verifyAffiliateCode.
+    } else {
+        // result.getErrorCode(): PROGRAM_DISABLED, AFFILIATE_LIMIT_REACHED, INVALID_EMAIL,
+        // TOO_MANY_CODES, RATE_LIMITED, COMPANY_NOT_FOUND, INVALID_COMPANY_ID,
+        // DEEP_LINK_POOL_CONFLICT (try again), NOT_INITIALIZED, NETWORK_ERROR, SERVER_ERROR
+        Log.e("MyApp", result.getErrorMessage());
+    }
+});
+
+// 2. Only when verification was required
+InsertAffiliateManager.verifyAffiliateCode(email, "123456", name, result -> {
+    if (result.isSuccess()) {
+        // status "connected" (existing affiliate) or "created"
+    } else if ("INVALID_CODE".equals(result.getErrorCode())) {
+        // Wrong or expired code. Spaces, dashes and digits in any script are accepted.
+    }
+    // Other codes: PROGRAM_DISABLED, INVALID_EMAIL, RATE_LIMITED, COMPANY_NOT_FOUND,
+    // INVALID_COMPANY_ID, DEEP_LINK_POOL_CONFLICT (try again), AFFILIATE_LIMIT_REACHED,
+    // NOT_INITIALIZED, NETWORK_ERROR, SERVER_ERROR
+});
+
+// 3. Read their stats (null if this device is not connected)
+InsertAffiliateManager.getMyAffiliateDetails(details -> {
+    if (details != null) {
+        int referrals = details.getReferralCount();   // for your configured trigger
+        double earned = details.getTotalEarned();     // in details.getCurrency()
+        String code = details.getAffiliateShortCode();
+        String link = details.getDeeplinkUrl();
+        String dashboard = details.getDashboardUrl();
+    }
+});
+
+// 4. Open the system share sheet with their link
+InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}");
+```
+
+| Method | Description |
+|---|---|
+| `createAffiliateForUser(email, name, [options,] callback)` | Makes the user an affiliate and connects this device. Result status: `created`, `verificationRequired` or `error`. `options` (`ReferrerAccountOptions`) is optional |
+| `verifyAffiliateCode(email, code, name, [options,] callback)` | Finishes connecting with the emailed 6-digit code. Result status: `connected`, `created` or `error`. `name` and `options` are optional |
+| `setReferrerAccount(options, callback)` | Saves the user's RevenueCat / Adapty app user id or Google Play purchase token after they joined. Callback receives `true` when saved |
+| `getMyAffiliateDetails(callback)` | The user's code, link and stats (`referralCount`, `installCount`, `eventCount`, `purchaseCount`, `totalEarned`, `totalPaid`, `totalUnpaid`, `currency`, `dashboardUrl`, `rewardsGranted`, `premiumUntil`, `rewardCodes`). `null` when not connected |
+| `isUserAnAffiliate()` | `true` when this device is connected. Local check, no network |
+| `signOutAffiliate()` | Disconnects this device (call on app logout). Their affiliate account is untouched |
+| `getReferralProgramConfig(callback)` | Your dashboard settings: `enabled`, `companyName`, `referralTrigger`, `headline`, `rewardText`, `primaryColor` |
+| `shareReferralLink(activity, message)` | Opens the share sheet. `message` is optional |
+| `showReferAFriend(activity, options)` | Presents the drop-in screen. `options` is optional |
+
+**Order to call them in, and the states to handle:**
+
+1. `getReferralProgramConfig(callback)`: read `isEnabled()` first. When it is off, show nothing. `getCompanyName()`, `getHeadline()`, `getRewardText()` and `getPrimaryColor()` are your dashboard copy, and `getReferralTrigger()` says what counts as a referral.
+2. `isUserAnAffiliate()`: a local check, no network. **Not enrolled:** ask for an email and name, then call `createAffiliateForUser`.
+3. **Code needed:** `result.isVerificationRequired()` means we emailed a 6-digit code. Ask for it and call `verifyAffiliateCode`. Call `createAffiliateForUser` again for a new code. Spaces, dashes and digits in any script are accepted.
+4. **Enrolled:** `getMyAffiliateDetails(callback)` for `getAffiliateShortCode()`, `getDeeplinkUrl()`, `getReferralCount()`, `getTotalEarned()` with `getCurrency()` and `getDashboardUrl()`. Show the link when it starts with `http`, otherwise show the code (Short Code Only apps).
+5. **Sharing:** `shareReferralLink(activity, message)` opens the system share sheet, or build your own text from the code and link.
+6. **Rewards:** `getRewardsGranted()`, `getPremiumUntilDate()` (null when none) and `getRewardCodes()`. Show only codes where `isGooglePlay()` is true, since App Store codes cannot be redeemed on Android, and open `getRedeemUrl()` for Redeem.
+7. **Accounts:** `setReferrerAccount(options, callback)` whenever the user subscribes or logs in after joining.
+8. **Signing out:** `signOutAffiliate()` on app logout, which disconnects this device only.
+
+**Errors:** every failure from `createAffiliateForUser` and `verifyAffiliateCode` arrives as `result.getErrorCode()` (the codes listed above), so you can word each one yourself. `getMyAffiliateDetails` and `getReferralProgramConfig` pass `null` on failure: use `isUserAnAffiliate()` to tell "not connected" from a failed request. If the server says the connection is no longer valid, the SDK clears it, so `isUserAnAffiliate()` then returns false and the user joins again with an email code.
+
+**Share text:** with a web link the SDK shares `"<message> <link>"` (default message `"Try {your app name}:"`). For Short Code Only apps it shares `"Use my code {code} in {your app name}"`.
+
+**Automatic referrer rewards:** if you switched on referrer rewards in your dashboard (RevenueCat, Adapty or Google Play), the server needs to know which account belongs to your user. Pass it when they join (or set it on `ReferAFriendOptions` if you only use the drop-in screen), or later with `setReferrerAccount` when they subscribe or log in after joining; the server then grants any rewards that were waiting. The SDK also sends this device's id (the one in the insert affiliate identifier) so a "friend" who is really the referrer isn't counted.
+
+```java
+ReferrerAccountOptions account = new ReferrerAccountOptions()
+    .setAppUserId(Purchases.getSharedInstance().getAppUserID())  // RevenueCat app user id, or Adapty customer user id
+    .setPlayPurchaseToken(purchase.getPurchaseToken());          // the user's own Google Play subscription token (optional)
+
+// When joining
+InsertAffiliateManager.createAffiliateForUser(email, name, account, result -> { /* ... */ });
+InsertAffiliateManager.verifyAffiliateCode(email, "123456", name, account, result -> { /* ... */ });
+
+// Or later, once the user has subscribed or logged in
+InsertAffiliateManager.setReferrerAccount(account, saved -> {
+    Log.i("MyApp", "Referrer account saved: " + saved);
+});
+
+// What they have been granted
+InsertAffiliateManager.getMyAffiliateDetails(details -> {
+    if (details != null) {
+        int rewards = details.getRewardsGranted();
+        Date premiumUntil = details.getPremiumUntilDate();  // null when none; getPremiumUntil() is the ISO string
+        List<MyAffiliateDetails.RewardCode> codes = details.getRewardCodes();  // reward codes, newest first
+    }
+});
+```
+
+`getRewardCodes()` holds reward codes (`getCode()`, `getRedeemUrl()`, `getStore()`, `getGrantedAt()`). `getStore()` is `"google_play"` for Google Play promo codes and `"app_store"` for App Store one-time offer codes (codes with no store are App Store codes); `isGooglePlay()` is a shortcut. The drop-in screen shows Google Play promo codes under "Your rewards", each with Copy and a Redeem button that opens the Play Store to redeem it. App Store codes can only be redeemed on iOS, so the drop-in screen keeps them hidden on Android.
+
+**How the connection works:** when a user joins, the server gives this device a private token, stored in private `SharedPreferences` (one per company code). It only lets the device read the user's own stats. If Android Auto Backup is on for your app (the default), the token can be restored after a reinstall or on a new phone, and the user stays connected without an email code. Otherwise they enter their email again and confirm with the emailed code. Either way their affiliate account, earnings and dashboard are unchanged. The token is cleared when the server reports it is no longer valid, or when you call `signOutAffiliate()`.
+
+**Rewarding referrers:** values shown on the device are for display only, because a modified device can fake what it shows. Grant anything valuable (credits, premium time) from your server, using the `referral.created` webhook or the Public API. `referralCount` only goes up, so you can compare it with what you have already rewarded and grant the difference.
+
+**Store rules:** the SDK uses the system share sheet only, needs no Contacts permission and never gates features behind sharing. Do not reward ratings or reviews. For free premium time, use Google Play promo codes or RevenueCat promotional entitlements.
+
+</details>
+
 ### Prevent Affiliate Transfer
 
 By default, clicking a new affiliate link will overwrite any existing attribution. Enable `preventAffiliateTransfer` to lock the first affiliate:

@@ -46,6 +46,7 @@ public class InsertAffiliateManager {
     private static boolean insertLinks = false;
     private static long affiliateAttributionActiveTime = 0; // Time in seconds for affiliate attribution to remain active (0 = no timeout)
     private static boolean preventAffiliateTransfer = false; // When true, prevents new affiliates from overwriting existing attribution
+    private static Context appContext; // Application context from init, used for in-app referral token storage
 
     // Source types for affiliate association tracking
     public enum AffiliateAssociationSource {
@@ -135,6 +136,9 @@ public class InsertAffiliateManager {
             Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK is already initialized with a company code that isn't null.");
         }
         companyCode = code;
+        if (activity != null) {
+            appContext = activity.getApplicationContext();
+        }
         Log.i("InsertAffiliate TAG", "[Insert Affiliate] SDK initialized with company code: " + companyCode);
         storeAndReturnShortUniqueDeviceId(activity); // Saving device UUID
         
@@ -1491,5 +1495,516 @@ public class InsertAffiliateManager {
                 }
             }
         }).start();
+    }
+
+    // MARK: In-App Referrals
+    // Lets the app make its own user an affiliate, read that user's referral
+    // stats and show a drop-in "Refer a friend" screen. Reading the user's own
+    // stats needs the device token the server issues on enrol/verify; it is
+    // kept in private SharedPreferences, one per company, and never logged.
+
+    private static final String SDK_AFFILIATE_BASE_URL = "https://api.insertaffiliate.com/V1/sdk/affiliate";
+    private static final String REFERRER_PREFS = "InsertAffiliateReferrer";
+    private static final String REFERRER_TOKEN_KEY_PREFIX = "referrer_token_";
+    static final String NOT_ENROLLED = "NOT_ENROLLED";
+    private static final Object REFERRER_TOKEN_LOCK = new Object();
+
+    /**
+     * Callback interface for createAffiliateForUser and verifyAffiliateCode
+     */
+    public interface AffiliateUserResultCallback {
+        void onResult(AffiliateUserResult result);
+    }
+
+    /**
+     * Callback interface for getMyAffiliateDetails
+     */
+    public interface MyAffiliateDetailsCallback {
+        void onMyAffiliateDetailsReceived(MyAffiliateDetails details);
+    }
+
+    /**
+     * Callback interface for setReferrerAccount
+     */
+    public interface ReferrerAccountCallback {
+        void onResult(boolean saved);
+    }
+
+    /**
+     * Callback interface for getReferralProgramConfig
+     */
+    public interface ReferralProgramConfigCallback {
+        void onConfigReceived(ReferralProgramConfig config);
+    }
+
+    // Like MyAffiliateDetailsCallback, plus why details are null (NOT_ENROLLED,
+    // NETWORK_ERROR or SERVER_ERROR), so the drop-in screen can tell them apart.
+    interface MyAffiliateDetailsLoadCallback {
+        void onLoaded(MyAffiliateDetails details, String errorCode);
+    }
+
+    /**
+     * Makes the app's user an affiliate of this company and connects this device.
+     * Pass your logged-in user's email. If the email already belongs to an affiliate
+     * (for example after a reinstall), the server emails a 6-digit code instead and
+     * the result is verificationRequired: collect the code and call verifyAffiliateCode.
+     * The callback runs on a background thread.
+     * @param email The user's email
+     * @param name The user's display name (optional, may be null)
+     * @param callback Receives created, verificationRequired or error
+     */
+    public static void createAffiliateForUser(String email, String name, AffiliateUserResultCallback callback) {
+        createAffiliateForUser(email, name, null, callback);
+    }
+
+    /**
+     * Same as createAffiliateForUser(email, name, callback), and also sends the
+     * user's own accounts so the server can grant their referrer rewards.
+     * The callback runs on a background thread.
+     * @param email The user's email
+     * @param name The user's display name (optional, may be null)
+     * @param options The user's RevenueCat / Adapty app user id and Google Play purchase token (optional, may be null)
+     * @param callback Receives created, verificationRequired or error
+     */
+    public static void createAffiliateForUser(String email, String name, ReferrerAccountOptions options, AffiliateUserResultCallback callback) {
+        JsonObject body = referrerRequestBody(email, name, options);
+        if (body == null) {
+            AffiliateUserResult notInitialized = AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
+                "Initialise the SDK with a company code first.");
+            new Thread(() -> deliverResult(callback, notInitialized)).start();
+            return;
+        }
+        verboseLog("Creating affiliate for app user...");
+        sendEnrolRequest("/enrol", body, callback);
+    }
+
+    /**
+     * Finishes connecting with the 6-digit code emailed after createAffiliateForUser
+     * returned verificationRequired. The callback runs on a background thread.
+     */
+    public static void verifyAffiliateCode(String email, String code, AffiliateUserResultCallback callback) {
+        verifyAffiliateCode(email, code, null, callback);
+    }
+
+    /**
+     * Finishes connecting with the 6-digit code emailed after createAffiliateForUser
+     * returned verificationRequired. The callback runs on a background thread.
+     * @param email The same email passed to createAffiliateForUser
+     * @param code The 6-digit code from the email. Spaces and dashes are ignored and any script's digits are accepted
+     * @param name The user's display name (optional, used if a new affiliate is created)
+     * @param callback Receives connected, created or error
+     */
+    public static void verifyAffiliateCode(String email, String code, String name, AffiliateUserResultCallback callback) {
+        verifyAffiliateCode(email, code, name, null, callback);
+    }
+
+    /**
+     * Same as verifyAffiliateCode(email, code, name, callback), and also sends the
+     * user's own accounts so the server can grant their referrer rewards.
+     * The callback runs on a background thread.
+     * @param email The same email passed to createAffiliateForUser
+     * @param code The 6-digit code from the email. Spaces and dashes are ignored and any script's digits are accepted
+     * @param name The user's display name (optional, used if a new affiliate is created)
+     * @param options The user's RevenueCat / Adapty app user id and Google Play purchase token (optional, may be null)
+     * @param callback Receives connected, created or error
+     */
+    public static void verifyAffiliateCode(String email, String code, String name, ReferrerAccountOptions options, AffiliateUserResultCallback callback) {
+        JsonObject body = referrerRequestBody(email, name, options);
+        if (body == null) {
+            AffiliateUserResult notInitialized = AffiliateUserResult.error(AffiliateUserResult.ERROR_NOT_INITIALIZED,
+                "Initialise the SDK with a company code first.");
+            new Thread(() -> deliverResult(callback, notInitialized)).start();
+            return;
+        }
+        body.addProperty("code", InAppReferrals.normalizeEmailCode(code));
+        verboseLog("Verifying affiliate code...");
+        sendEnrolRequest("/verify", body, callback);
+    }
+
+    /**
+     * Fetches the connected user's affiliate details and referral stats.
+     * Returns null when this device is not connected, or when the request fails.
+     * If the server no longer recognises the device, the stored token is cleared.
+     * The callback runs on a background thread.
+     */
+    public static void getMyAffiliateDetails(MyAffiliateDetailsCallback callback) {
+        loadMyAffiliateDetails((details, errorCode) -> {
+            deliverDetails(callback, details);
+        });
+    }
+
+    /**
+     * Saves the connected user's own accounts (RevenueCat / Adapty app user id,
+     * Google Play purchase token) for an existing referrer. Use it when the user
+     * subscribes or logs in after joining; the server then grants any rewards
+     * that were waiting. Receives false when this device is not connected or the
+     * request fails. If the server no longer recognises the device, the stored
+     * token is cleared. The callback runs on a background thread.
+     * @param options The user's accounts
+     * @param callback Receives true when saved (optional, may be null)
+     */
+    public static void setReferrerAccount(ReferrerAccountOptions options, ReferrerAccountCallback callback) {
+        String token = getReferrerToken();
+        if (token == null || token.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot set referrer account: user is not an affiliate yet. Call createAffiliateForUser first.");
+            new Thread(() -> deliverSaved(callback, false)).start();
+            return;
+        }
+        JsonObject body = InAppReferrals.identityBody(options, referrerDeviceId());
+        verboseLog("Saving referrer account...");
+        new Thread(() -> {
+            SdkAffiliateResponse response = sdkAffiliateRequest("POST", "/me/identity", body.toString(), token);
+            if (InAppReferrals.isConnectionGone(response.status, response.body)) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer connection is no longer valid (" +
+                    InAppReferrals.errorCode(response.body) + "). Clearing it.");
+                clearReferrerToken(token);
+                deliverSaved(callback, false);
+                return;
+            }
+            boolean saved = InAppReferrals.parseIdentitySaved(response.status, response.body);
+            if (saved) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer account saved.");
+            } else {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error saving referrer account: HTTP " + response.status);
+            }
+            deliverSaved(callback, saved);
+        }).start();
+    }
+
+    /**
+     * True when this device holds a referrer token for this company. Local check only.
+     */
+    public static boolean isUserAnAffiliate() {
+        String token = getReferrerToken();
+        return token != null && !token.isEmpty();
+    }
+
+    /**
+     * Disconnects this device from the user's affiliate account (for example on app logout).
+     * The affiliate, their earnings and their dashboard are untouched.
+     */
+    public static void signOutAffiliate() {
+        clearReferrerToken();
+        Log.i("InsertAffiliate TAG", "[Insert Affiliate] Signed out of in-app referrals on this device.");
+    }
+
+    /**
+     * Fetches the in-app referral settings from the dashboard (on/off, headline,
+     * reward text, colour). Returns null on failure. The callback runs on a background thread.
+     */
+    public static void getReferralProgramConfig(ReferralProgramConfigCallback callback) {
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot get referral program config: no company code available");
+            new Thread(() -> deliverConfig(callback, null)).start();
+            return;
+        }
+        new Thread(() -> {
+            String encodedCompany;
+            try {
+                encodedCompany = URLEncoder.encode(companyCode, StandardCharsets.UTF_8.toString());
+            } catch (Exception e) {
+                encodedCompany = companyCode;
+            }
+            SdkAffiliateResponse response = sdkAffiliateRequest("GET", "/config/" + encodedCompany, null, null);
+            ReferralProgramConfig config = null;
+            if (response.status == HttpURLConnection.HTTP_OK) {
+                config = InAppReferrals.parseConfig(response.body);
+            } else {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching referral program config: HTTP " + response.status);
+            }
+            deliverConfig(callback, config);
+        }).start();
+    }
+
+    /**
+     * Opens the system share sheet with the connected user's referral link
+     * (or code, for Short Code Only apps), using the default message.
+     */
+    public static void shareReferralLink(Activity activity) {
+        shareReferralLink(activity, null);
+    }
+
+    /**
+     * Opens the system share sheet with the connected user's referral link.
+     * Does nothing if this device is not connected.
+     * @param activity The activity to present the share sheet from
+     * @param message Text to share with the link (optional). May use {link} and {code} placeholders.
+     */
+    public static void shareReferralLink(Activity activity, String message) {
+        if (activity == null) {
+            return;
+        }
+        loadMyAffiliateDetails((details, errorCode) -> {
+            if (details == null) {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot share referral link: " +
+                    (NOT_ENROLLED.equals(errorCode) ? "user is not an affiliate yet. Call createAffiliateForUser first." : "could not load affiliate details."));
+                return;
+            }
+            getReferralProgramConfig(config -> {
+                String companyName = config != null ? config.getCompanyName() : "";
+                String text = InAppReferrals.buildShareText(
+                    details.getDeeplinkUrl(), details.getAffiliateShortCode(), companyName, message);
+                activity.runOnUiThread(() -> openShareSheet(activity, text));
+            });
+        });
+    }
+
+    /**
+     * Presents the drop-in "Refer a friend" screen with default options.
+     */
+    public static void showReferAFriend(Activity activity) {
+        showReferAFriend(activity, null);
+    }
+
+    /**
+     * Presents the drop-in "Refer a friend" screen. It handles joining (including the
+     * emailed code step), then shows the user's code, link, share button and stats.
+     * Call from the main thread.
+     * @param activity The activity to present from
+     * @param options Prefill, copy and theme options (optional)
+     */
+    public static void showReferAFriend(Activity activity, ReferAFriendOptions options) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot show Refer a friend: activity is not available");
+            return;
+        }
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot show Refer a friend: no company code available");
+            return;
+        }
+        new ReferAFriendDialog(activity, options != null ? options : new ReferAFriendOptions()).show();
+    }
+
+    // Opens the Android share sheet. Share sheet only: no contacts access.
+    static void openShareSheet(Activity activity, String text) {
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, text);
+        try {
+            activity.startActivity(Intent.createChooser(send, null));
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Could not open share sheet: " + e.getMessage());
+        }
+    }
+
+    // Same as getMyAffiliateDetails, but reports why details are missing.
+    static void loadMyAffiliateDetails(MyAffiliateDetailsLoadCallback callback) {
+        String token = getReferrerToken();
+        if (token == null || token.isEmpty()) {
+            verboseLog("No referrer token stored, user is not an affiliate on this device");
+            new Thread(() -> callback.onLoaded(null, NOT_ENROLLED)).start();
+            return;
+        }
+        new Thread(() -> {
+            SdkAffiliateResponse response = sdkAffiliateRequest("GET", "/me", null, token);
+            if (response.status == HttpURLConnection.HTTP_OK) {
+                MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails(response.body);
+                callback.onLoaded(details, details == null ? AffiliateUserResult.ERROR_SERVER : null);
+                return;
+            }
+            if (InAppReferrals.isConnectionGone(response.status, response.body)) {
+                // INVALID_TOKEN or AFFILIATE_NOT_FOUND: this device is no longer connected.
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Referrer connection is no longer valid (" +
+                    InAppReferrals.errorCode(response.body) + "). Clearing it.");
+                // A newer connection made meanwhile stays; report a retryable error instead.
+                boolean cleared = clearReferrerToken(token);
+                callback.onLoaded(null, cleared ? NOT_ENROLLED : AffiliateUserResult.ERROR_SERVER);
+                return;
+            }
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching my affiliate details: HTTP " + response.status);
+            callback.onLoaded(null, response.status < 0 ? AffiliateUserResult.ERROR_NETWORK : AffiliateUserResult.ERROR_SERVER);
+        }).start();
+    }
+
+    private static JsonObject referrerRequestBody(String email, String name, ReferrerAccountOptions options) {
+        if (companyCode == null || companyCode.isEmpty()) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Company code is not set. Please initialise the SDK with a valid company code.");
+            return null;
+        }
+        JsonObject body = new JsonObject();
+        body.addProperty("companyId", companyCode);
+        body.addProperty("email", email == null ? "" : email.trim());
+        body.addProperty("name", name == null ? "" : name.trim());
+        body.addProperty("platform", InAppReferrals.PLATFORM);
+        InAppReferrals.addReferrerAccount(body, options, referrerDeviceId());
+        return body;
+    }
+
+    // The device id from the "{shortCode}-{deviceId}" insert affiliate identifier,
+    // so the server's self-referral checks match. Null before init.
+    private static String referrerDeviceId() {
+        if (appContext == null) {
+            return null;
+        }
+        return appContext.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE)
+            .getString("shortUniqueDeviceID", null);
+    }
+
+    private static void sendEnrolRequest(String path, JsonObject body, AffiliateUserResultCallback callback) {
+        new Thread(() -> {
+            SdkAffiliateResponse response = sdkAffiliateRequest("POST", path, body.toString(), null);
+            InAppReferrals.EnrolResponse parsed = InAppReferrals.parseEnrolResponse(response.status, response.body);
+            if (parsed.token != null) {
+                storeReferrerToken(parsed.token);
+            }
+            AffiliateUserResult result = parsed.result;
+            if (result.isSuccess()) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] In-app referrer " + result.getStatus() + ".");
+            } else if (result.isVerificationRequired()) {
+                Log.i("InsertAffiliate TAG", "[Insert Affiliate] Email code sent. Call verifyAffiliateCode with the 6-digit code.");
+            } else {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] In-app referrer request failed: " + result.getErrorCode() + " " + result.getErrorMessage());
+            }
+            deliverResult(callback, result);
+        }).start();
+    }
+
+    private static void deliverResult(AffiliateUserResultCallback callback, AffiliateUserResult result) {
+        if (callback == null) return;
+        try {
+            callback.onResult(result);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in affiliate result callback: " + e.getMessage());
+        }
+    }
+
+    private static void deliverDetails(MyAffiliateDetailsCallback callback, MyAffiliateDetails details) {
+        if (callback == null) return;
+        try {
+            callback.onMyAffiliateDetailsReceived(details);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in my affiliate details callback: " + e.getMessage());
+        }
+    }
+
+    private static void deliverConfig(ReferralProgramConfigCallback callback, ReferralProgramConfig config) {
+        if (callback == null) return;
+        try {
+            callback.onConfigReceived(config);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in referral program config callback: " + e.getMessage());
+        }
+    }
+
+    private static void deliverSaved(ReferrerAccountCallback callback, boolean saved) {
+        if (callback == null) return;
+        try {
+            callback.onResult(saved);
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error in referrer account callback: " + e.getMessage());
+        }
+    }
+
+    private static final class SdkAffiliateResponse {
+        final int status; // -1 when the request did not reach the server
+        final String body;
+
+        SdkAffiliateResponse(int status, String body) {
+            this.status = status;
+            this.body = body;
+        }
+    }
+
+    // Blocking request to /V1/sdk/affiliate; call from a background thread.
+    // Bodies are never logged because enrol/verify responses carry the token.
+    private static SdkAffiliateResponse sdkAffiliateRequest(String method, String path, String jsonBody, String token) {
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(SDK_AFFILIATE_BASE_URL + path);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(20000);
+            connection.setRequestProperty("Accept", "application/json");
+            if (token != null) {
+                connection.setRequestProperty("X-Insert-Affiliate-Token", token);
+            }
+            if (jsonBody != null) {
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setDoOutput(true);
+                connection.getOutputStream().write(jsonBody.getBytes(StandardCharsets.UTF_8));
+            }
+
+            int responseCode = connection.getResponseCode();
+            verboseLog("In-app referrals " + method + " " + path.split("/")[1] + " response status: " + responseCode);
+
+            java.io.InputStream stream = responseCode >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            StringBuilder response = new StringBuilder();
+            if (stream != null) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+                String line;
+                while ((line = in.readLine()) != null) {
+                    response.append(line);
+                }
+                in.close();
+            }
+            return new SdkAffiliateResponse(responseCode, response.toString());
+        } catch (Exception e) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] In-app referrals network error: " + e.getMessage());
+            return new SdkAffiliateResponse(-1, null);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    // MARK: Referrer token storage
+
+    private static SharedPreferences referrerPrefs() {
+        return appContext == null ? null : appContext.getSharedPreferences(REFERRER_PREFS, Context.MODE_PRIVATE);
+    }
+
+    private static String referrerTokenKey() {
+        return companyCode == null || companyCode.isEmpty() ? null : REFERRER_TOKEN_KEY_PREFIX + companyCode;
+    }
+
+    private static String getReferrerToken() {
+        SharedPreferences prefs = referrerPrefs();
+        String key = referrerTokenKey();
+        if (prefs == null || key == null) {
+            return null;
+        }
+        return prefs.getString(key, null);
+    }
+
+    private static void storeReferrerToken(String token) {
+        SharedPreferences prefs = referrerPrefs();
+        String key = referrerTokenKey();
+        if (prefs == null || key == null) {
+            Log.e("InsertAffiliate TAG", "[Insert Affiliate] Cannot store referrer connection: SDK is not initialised");
+            return;
+        }
+        synchronized (REFERRER_TOKEN_LOCK) {
+            prefs.edit().putString(key, token).apply();
+        }
+    }
+
+    private static void clearReferrerToken() {
+        SharedPreferences prefs = referrerPrefs();
+        String key = referrerTokenKey();
+        if (prefs != null && key != null) {
+            synchronized (REFERRER_TOKEN_LOCK) {
+                prefs.edit().remove(key).apply();
+            }
+        }
+    }
+
+    // Clears the stored token only while it is still sentToken, so a rejected
+    // request never removes a newer connection made while it was in flight.
+    // Returns true when the token was cleared.
+    private static boolean clearReferrerToken(String sentToken) {
+        SharedPreferences prefs = referrerPrefs();
+        String key = referrerTokenKey();
+        if (prefs == null || key == null || sentToken == null) {
+            return false;
+        }
+        synchronized (REFERRER_TOKEN_LOCK) {
+            if (!sentToken.equals(prefs.getString(key, null))) {
+                return false;
+            }
+            prefs.edit().remove(key).apply();
+            return true;
+        }
     }
 }
