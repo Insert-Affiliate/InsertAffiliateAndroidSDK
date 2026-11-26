@@ -11,8 +11,14 @@ public class ReferralProgramConfig {
     private final String headline;
     private final String rewardText;
     private final String primaryColor;
+    private final boolean showCode;
 
     public ReferralProgramConfig(boolean enabled, String companyName, String referralTrigger, String headline, String rewardText, String primaryColor) {
+        this(enabled, companyName, referralTrigger, headline, rewardText, primaryColor, true);
+    }
+
+    public ReferralProgramConfig(boolean enabled, String companyName, String referralTrigger, String headline, String rewardText, String primaryColor, boolean showCode) {
+        this.showCode = showCode;
         this.enabled = enabled;
         this.companyName = companyName;
         this.referralTrigger = referralTrigger;
@@ -45,5 +51,10 @@ public class ReferralProgramConfig {
     /** Hex colour such as "#6A0DAD", or empty when not set. */
     public String getPrimaryColor() {
         return primaryColor;
+    }
+
+    /** False when the dashboard hides the short code on the screen. True when an older server does not say. */
+    public boolean isShowCode() {
+        return showCode;
     }
 }

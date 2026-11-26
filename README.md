@@ -1010,7 +1010,7 @@ InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
 The screen handles everything itself:
 - **Not joined yet:** email and name fields (prefilled) and a "Get my link" button.
 - **Email already belongs to an affiliate** (for example after a reinstall or on a new phone, unless Auto Backup restored the connection): asks for the 6-digit code we email them, with "Send a new code".
-- **Joined:** their code and link with Copy buttons, a Share button (system share sheet), their referral count and earnings, "Free premium until {date}" while a referrer reward is active, "Your rewards" with any Google Play promo codes (Copy and Redeem), and "Open my dashboard".
+- **Joined:** their code (unless your dashboard hides it, and it still shows when there is no web link to share) and link with Copy buttons, a Share button (system share sheet), a stats strip with their referral count plus the cash and free-premium days earned that your dashboard chooses to show, "Free premium until {date}" while a referrer reward is active, "Your rewards" with any Google Play promo codes (Copy and Redeem), and "Open my dashboard".
 
 Headline, reward text and colour come from your dashboard, so you can change the wording without an app release. You can override them in code:
 
@@ -1027,7 +1027,7 @@ Headline, reward text and colour come from your dashboard, so you can change the
 
 The screen is built with standard Android views, so it adds no dependencies and works with any app theme (light and dark).
 
-**Translating the screen:** every label has an English default that you can replace with `setStrings` (a map) or `setString` (one key). Keys you leave out keep their default, a blank override falls back to the default, and unknown keys are ignored. Keep any `{email}` or `{date}` placeholder in your text: the SDK fills them in.
+**Translating the screen:** every label has an English default that you can replace with `setStrings` (a map) or `setString` (one key). Keys you leave out keep their default, a blank override falls back to the default, and unknown keys are ignored. Keep any `{email}`, `{date}` or `{count}` placeholder in your text: the SDK fills them in. `DAYS_UNIT_ONE` is used for 1 day and `DAYS_UNIT_OTHER` for any other number.
 
 ```java
 Map<String, String> strings = new HashMap<>();
@@ -1062,6 +1062,9 @@ InsertAffiliateManager.showReferAFriend(this, new ReferAFriendOptions()
 | `SHARE_BUTTON` | `shareButton` | Share |
 | `REFERRALS_LABEL` | `referralsLabel` | Referrals |
 | `EARNED_LABEL` | `earnedLabel` | Earned |
+| `DAYS_EARNED_LABEL` | `daysEarnedLabel` | Days earned |
+| `DAYS_UNIT_ONE` | `daysUnitOne` | {count} day |
+| `DAYS_UNIT_OTHER` | `daysUnitOther` | {count} days |
 | `PREMIUM_UNTIL` | `premiumUntil` | Free premium until {date} |
 | `REWARDS_HEADING` | `rewardsHeading` | Your rewards |
 | `REDEEM_BUTTON` | `redeemButton` | Redeem |
@@ -1133,10 +1136,10 @@ InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}
 | `createAffiliateForUser(email, name, [options,] callback)` | Makes the user an affiliate and connects this device. Result status: `created`, `verificationRequired` or `error`. `options` (`ReferrerAccountOptions`) is optional |
 | `verifyAffiliateCode(email, code, name, [options,] callback)` | Finishes connecting with the emailed 6-digit code. Result status: `connected`, `created` or `error`. `name` and `options` are optional |
 | `setReferrerAccount(options, callback)` | Saves the user's RevenueCat / Adapty app user id or Google Play purchase token after they joined. Callback receives `true` when saved |
-| `getMyAffiliateDetails(callback)` | The user's code, link and stats (`referralCount`, `installCount`, `eventCount`, `purchaseCount`, `totalEarned`, `totalPaid`, `totalUnpaid`, `currency`, `dashboardUrl`, `rewardsGranted`, `premiumUntil`, `rewardCodes`). `null` when not connected |
+| `getMyAffiliateDetails(callback)` | The user's code, link and stats (`referralCount`, `installCount`, `eventCount`, `purchaseCount`, `totalEarned`, `totalPaid`, `totalUnpaid`, `currency`, `dashboardUrl`, `rewardsGranted`, `premiumUntil`, `rewardCodes`, `getRewardDaysEarned()`, `getEarnedDisplay()` with `isCash()` and `isDays()`). `null` when not connected |
 | `isUserAnAffiliate()` | `true` when this device is connected. Local check, no network |
 | `signOutAffiliate()` | Disconnects this device (call on app logout). Their affiliate account is untouched |
-| `getReferralProgramConfig(callback)` | Your dashboard settings: `enabled`, `companyName`, `referralTrigger`, `headline`, `rewardText`, `primaryColor` |
+| `getReferralProgramConfig(callback)` | Your dashboard settings: `enabled`, `companyName`, `referralTrigger`, `headline`, `rewardText`, `primaryColor`, `isShowCode()` |
 | `shareReferralLink(activity, message)` | Opens the share sheet. `message` is optional |
 | `showReferAFriend(activity, options)` | Presents the drop-in screen. `options` is optional |
 
@@ -1145,7 +1148,7 @@ InsertAffiliateManager.shareReferralLink(this, "Get a free week of MyApp: {link}
 1. `getReferralProgramConfig(callback)`: read `isEnabled()` first. When it is off, show nothing. `getCompanyName()`, `getHeadline()`, `getRewardText()` and `getPrimaryColor()` are your dashboard copy, and `getReferralTrigger()` says what counts as a referral.
 2. `isUserAnAffiliate()`: a local check, no network. **Not enrolled:** ask for an email and name, then call `createAffiliateForUser`.
 3. **Code needed:** `result.isVerificationRequired()` means we emailed a 6-digit code. Ask for it and call `verifyAffiliateCode`. Call `createAffiliateForUser` again for a new code. Spaces, dashes and digits in any script are accepted.
-4. **Enrolled:** `getMyAffiliateDetails(callback)` for `getAffiliateShortCode()`, `getDeeplinkUrl()`, `getReferralCount()`, `getTotalEarned()` with `getCurrency()` and `getDashboardUrl()`. Show the link when it starts with `http`, otherwise show the code (Short Code Only apps).
+4. **Enrolled:** `getMyAffiliateDetails(callback)` for `getAffiliateShortCode()`, `getDeeplinkUrl()`, `getReferralCount()`, `getTotalEarned()` with `getCurrency()` and `getDashboardUrl()`. Show the link when it starts with `http`, otherwise show the code (Short Code Only apps). Honour `getReferralProgramConfig().isShowCode()` by hiding the code when it is false, unless there is no web link to share. Honour `getEarnedDisplay()` too: show `getTotalEarned()` only when `isCash()` is true, and `getRewardDaysEarned()` (in days) only when `isDays()` is true.
 5. **Sharing:** `shareReferralLink(activity, message)` opens the system share sheet, or build your own text from the code and link.
 6. **Rewards:** `getRewardsGranted()`, `getPremiumUntilDate()` (null when none) and `getRewardCodes()`. Show only codes where `isGooglePlay()` is true, since App Store codes cannot be redeemed on Android, and open `getRedeemUrl()` for Redeem.
 7. **Accounts:** `setReferrerAccount(options, callback)` whenever the user subscribes or logs in after joining.

@@ -315,7 +315,9 @@ final class ReferAFriendDialog {
         String companyName = config != null ? config.getCompanyName() : "";
         String shareText = InAppReferrals.buildShareText(deeplinkUrl, shortCode, companyName, options.getShareMessage());
 
-        if (shortCode != null && !shortCode.isEmpty()) {
+        // A hidden code is still shown when there is no web link: then it is all there is to share.
+        // Otherwise the link row below has its own Copy button, which copies the link.
+        if (InAppReferrals.shouldShowCodeRow(config, deeplinkUrl) && shortCode != null && !shortCode.isEmpty()) {
             addLabel(string(ReferralStrings.CODE_LABEL_TITLE));
             addCopyRow(shortCode, true);
         }
@@ -406,10 +408,22 @@ final class ReferAFriendDialog {
         strip.setPadding(dp(8), dp(14), dp(8), dp(14));
         strip.setBackground(rounded(fieldColor));
 
-        strip.addView(stat(String.valueOf(details.getReferralCount()), string(ReferralStrings.REFERRALS_LABEL)),
+        MyAffiliateDetails.EarnedDisplay display = details.getEarnedDisplay();
+        // Three columns need a smaller value size to fit.
+        int valueSize = display.isCash() && display.isDays() ? 17 : 20;
+
+        strip.addView(stat(String.valueOf(details.getReferralCount()), string(ReferralStrings.REFERRALS_LABEL), valueSize),
             new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        strip.addView(stat(formatMoney(details.getTotalEarned(), details.getCurrency()), string(ReferralStrings.EARNED_LABEL)),
-            new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (display.isCash()) {
+            strip.addView(stat(formatMoney(details.getTotalEarned(), details.getCurrency()), string(ReferralStrings.EARNED_LABEL), valueSize),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        if (display.isDays()) {
+            String days = InAppReferrals.formatDays(details.getRewardDaysEarned(),
+                string(ReferralStrings.DAYS_UNIT_ONE), string(ReferralStrings.DAYS_UNIT_OTHER), Locale.getDefault());
+            strip.addView(stat(days, string(ReferralStrings.DAYS_EARNED_LABEL), valueSize),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        }
 
         LinearLayout.LayoutParams params = matchWidth();
         params.topMargin = dp(20);
@@ -461,11 +475,11 @@ final class ReferAFriendDialog {
         content.addView(row, params);
     }
 
-    private View stat(String value, String label) {
+    private View stat(String value, String label, int valueSize) {
         LinearLayout column = new LinearLayout(activity);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setGravity(Gravity.CENTER_HORIZONTAL);
-        TextView valueView = text(value, 20, textColor, true);
+        TextView valueView = text(value, valueSize, textColor, true);
         valueView.setGravity(Gravity.CENTER);
         TextView labelView = text(label, 13, secondaryTextColor, false);
         labelView.setGravity(Gravity.CENTER);

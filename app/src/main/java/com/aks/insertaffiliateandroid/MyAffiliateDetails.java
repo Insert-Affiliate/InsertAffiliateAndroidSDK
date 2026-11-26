@@ -29,6 +29,32 @@ public class MyAffiliateDetails {
     private final int rewardsGranted;
     private final String premiumUntil;
     private final List<RewardCode> rewardCodes;
+    private final int rewardDaysEarned;
+    private final EarnedDisplay earnedDisplay;
+
+    /** Which earnings the dashboard says to show: cash, free-premium days, or both. */
+    public static final class EarnedDisplay {
+        /** What older servers imply: cash earnings only. */
+        public static final EarnedDisplay CASH_ONLY = new EarnedDisplay(true, false);
+
+        private final boolean cash;
+        private final boolean days;
+
+        public EarnedDisplay(boolean cash, boolean days) {
+            this.cash = cash;
+            this.days = days;
+        }
+
+        /** True when the cash earned should be shown. */
+        public boolean isCash() {
+            return cash;
+        }
+
+        /** True when the free-premium days earned should be shown. */
+        public boolean isDays() {
+            return days;
+        }
+    }
 
     /** A code granted to the referrer as a reward: an App Store offer code or a Google Play promo code. */
     public static final class RewardCode {
@@ -119,6 +145,33 @@ public class MyAffiliateDetails {
         String premiumUntil,
         List<RewardCode> rewardCodes
     ) {
+        this(affiliateName, affiliateShortCode, deeplinkUrl, referralTrigger, referralCount, installCount,
+            eventCount, purchaseCount, totalEarned, totalPaid, totalUnpaid, currency, dashboardUrl,
+            rewardsGranted, premiumUntil, rewardCodes, 0, null);
+    }
+
+    public MyAffiliateDetails(
+        String affiliateName,
+        String affiliateShortCode,
+        String deeplinkUrl,
+        String referralTrigger,
+        int referralCount,
+        int installCount,
+        int eventCount,
+        int purchaseCount,
+        double totalEarned,
+        double totalPaid,
+        double totalUnpaid,
+        String currency,
+        String dashboardUrl,
+        int rewardsGranted,
+        String premiumUntil,
+        List<RewardCode> rewardCodes,
+        int rewardDaysEarned,
+        EarnedDisplay earnedDisplay
+    ) {
+        this.rewardDaysEarned = Math.max(0, rewardDaysEarned);
+        this.earnedDisplay = earnedDisplay == null ? EarnedDisplay.CASH_ONLY : earnedDisplay;
         this.affiliateName = affiliateName;
         this.affiliateShortCode = affiliateShortCode;
         this.deeplinkUrl = deeplinkUrl;
@@ -216,5 +269,15 @@ public class MyAffiliateDetails {
      */
     public List<RewardCode> getRewardCodes() {
         return rewardCodes;
+    }
+
+    /** Total free-premium days granted automatically as rewards. 0 from older servers. */
+    public int getRewardDaysEarned() {
+        return rewardDaysEarned;
+    }
+
+    /** Which earnings to show. Never null: older servers give cash only. */
+    public EarnedDisplay getEarnedDisplay() {
+        return earnedDisplay;
     }
 }

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.Assert.*;
 
@@ -138,6 +139,68 @@ public class InAppReferralsTest {
         assertEquals("Invite friends", config.getHeadline());
         assertEquals("Get a free month", config.getRewardText());
         assertEquals("#FF0000", config.getPrimaryColor());
+    }
+
+    @Test
+    public void config_showCodeDefaultsToTrueAndReadsBoolean() {
+        assertTrue(InAppReferrals.parseConfig("{\"enabled\":true}").isShowCode());
+        assertTrue(InAppReferrals.parseConfig("{\"enabled\":true,\"showCode\":true}").isShowCode());
+        assertFalse(InAppReferrals.parseConfig("{\"enabled\":true,\"showCode\":false}").isShowCode());
+        assertTrue(InAppReferrals.parseConfig("{\"enabled\":true,\"showCode\":\"false\"}").isShowCode());
+    }
+
+    @Test
+    public void codeRow_hiddenOnlyWhenThereIsAWebLinkToShare() {
+        ReferralProgramConfig hidden = InAppReferrals.parseConfig("{\"enabled\":true,\"showCode\":false}");
+        ReferralProgramConfig shown = InAppReferrals.parseConfig("{\"enabled\":true}");
+
+        assertFalse(InAppReferrals.shouldShowCodeRow(hidden, "https://insertaffiliate.link/abc"));
+        assertTrue(InAppReferrals.shouldShowCodeRow(hidden, "a1b2c3d4"));
+        assertTrue(InAppReferrals.shouldShowCodeRow(hidden, ""));
+        assertTrue(InAppReferrals.shouldShowCodeRow(hidden, null));
+        assertTrue(InAppReferrals.shouldShowCodeRow(shown, "https://insertaffiliate.link/abc"));
+        assertTrue(InAppReferrals.shouldShowCodeRow(null, "https://insertaffiliate.link/abc"));
+    }
+
+    @Test
+    public void myAffiliateDetails_parsesDaysEarnedAndEarnedDisplay() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails(
+            "{\"rewardDaysEarned\":90,\"earnedDisplay\":{\"cash\":false,\"days\":true},\"totalEarned\":null}");
+
+        assertEquals(90, details.getRewardDaysEarned());
+        assertFalse(details.getEarnedDisplay().isCash());
+        assertTrue(details.getEarnedDisplay().isDays());
+        assertEquals(0.0, details.getTotalEarned(), 0.0001);
+
+        MyAffiliateDetails both = InAppReferrals.parseMyAffiliateDetails(
+            "{\"rewardDaysEarned\":3,\"earnedDisplay\":{\"cash\":true,\"days\":true}}");
+        assertTrue(both.getEarnedDisplay().isCash());
+        assertTrue(both.getEarnedDisplay().isDays());
+    }
+
+    @Test
+    public void myAffiliateDetails_olderServerShowsCashOnlyWithZeroDays() {
+        MyAffiliateDetails details = InAppReferrals.parseMyAffiliateDetails("{\"affiliateName\":\"Jane\"}");
+
+        assertEquals(0, details.getRewardDaysEarned());
+        assertTrue(details.getEarnedDisplay().isCash());
+        assertFalse(details.getEarnedDisplay().isDays());
+
+        MyAffiliateDetails partial = InAppReferrals.parseMyAffiliateDetails("{\"earnedDisplay\":{\"days\":true}}");
+        assertTrue(partial.getEarnedDisplay().isCash());
+        assertTrue(partial.getEarnedDisplay().isDays());
+    }
+
+    @Test
+    public void formatDays_picksTheSingularOrPluralUnit() {
+        String one = ReferralStrings.defaultValue(ReferralStrings.DAYS_UNIT_ONE);
+        String other = ReferralStrings.defaultValue(ReferralStrings.DAYS_UNIT_OTHER);
+
+        assertEquals("1 day", InAppReferrals.formatDays(1, one, other, Locale.US));
+        assertEquals("0 days", InAppReferrals.formatDays(0, one, other, Locale.US));
+        assertEquals("90 days", InAppReferrals.formatDays(90, one, other, Locale.US));
+        assertEquals("1,200 days", InAppReferrals.formatDays(1200, one, other, Locale.US));
+        assertEquals("1 jour", InAppReferrals.formatDays(1, "{count} jour", "{count} jours", Locale.FRANCE));
     }
 
     @Test

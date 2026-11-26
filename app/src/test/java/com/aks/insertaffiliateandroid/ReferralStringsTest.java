@@ -87,6 +87,18 @@ public class ReferralStringsTest {
     }
 
     @Test
+    public void daysEarnedStrings_haveDefaultsAndCanBeOverridden() {
+        ReferAFriendOptions options = new ReferAFriendOptions();
+        assertEquals("Days earned", options.string(ReferralStrings.DAYS_EARNED_LABEL));
+        assertEquals("{count} day", options.string(ReferralStrings.DAYS_UNIT_ONE));
+        assertEquals("{count} days", options.string(ReferralStrings.DAYS_UNIT_OTHER));
+
+        options.setString(ReferralStrings.DAYS_UNIT_OTHER, "{count} jours");
+        assertEquals("{count} jours", options.string(ReferralStrings.DAYS_UNIT_OTHER));
+        assertEquals("{count} day", options.string(ReferralStrings.DAYS_UNIT_ONE));
+    }
+
+    @Test
     public void errorStrings_keyOffTheServerCode() {
         ReferAFriendOptions options = new ReferAFriendOptions()
             .setString(ReferralStrings.ERROR_INVALID_CODE, "Code invalide.");

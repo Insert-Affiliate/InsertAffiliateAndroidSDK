@@ -18,8 +18,9 @@ import java.util.Map;
  * and are overridden with setHeadline and setRewardText.
  *
  * Placeholders inside a value are kept as they are and filled in by the screen,
- * so a translation must keep them: {email} in CODE_SENT_NOTICE and {date} in
- * PREMIUM_UNTIL.
+ * so a translation must keep them: {email} in CODE_SENT_NOTICE, {date} in
+ * PREMIUM_UNTIL and {count} in DAYS_UNIT_ONE and DAYS_UNIT_OTHER (the singular
+ * and plural form of the days earned value).
  */
 public final class ReferralStrings {
 
@@ -44,6 +45,9 @@ public final class ReferralStrings {
     public static final String SHARE_BUTTON = "shareButton";
     public static final String REFERRALS_LABEL = "referralsLabel";
     public static final String EARNED_LABEL = "earnedLabel";
+    public static final String DAYS_EARNED_LABEL = "daysEarnedLabel";
+    public static final String DAYS_UNIT_ONE = "daysUnitOne";
+    public static final String DAYS_UNIT_OTHER = "daysUnitOther";
     public static final String PREMIUM_UNTIL = "premiumUntil";
     public static final String REWARDS_HEADING = "rewardsHeading";
     public static final String REDEEM_BUTTON = "redeemButton";
@@ -86,6 +90,9 @@ public final class ReferralStrings {
         defaults.put(SHARE_BUTTON, "Share");
         defaults.put(REFERRALS_LABEL, "Referrals");
         defaults.put(EARNED_LABEL, "Earned");
+        defaults.put(DAYS_EARNED_LABEL, "Days earned");
+        defaults.put(DAYS_UNIT_ONE, "{count} day");
+        defaults.put(DAYS_UNIT_OTHER, "{count} days");
         defaults.put(PREMIUM_UNTIL, "Free premium until {date}");
         defaults.put(REWARDS_HEADING, "Your rewards");
         defaults.put(REDEEM_BUTTON, "Redeem");
