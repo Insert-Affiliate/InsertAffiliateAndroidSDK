@@ -1274,7 +1274,95 @@ public class InsertAffiliateManager {
             verboseLog("Warning: URL company code (" + urlCompanyCode + ") doesn't match initialized company code (" + companyCode + ")");
         }
 
-        storeInsertAffiliateReferringLink(activity, shortCode.toUpperCase(), AffiliateAssociationSource.APP_LINK);
+        validateAndStoreShortCode(activity, shortCode.toUpperCase(), urlCompanyCode, AffiliateAssociationSource.APP_LINK);
+    }
+
+    /**
+     * Asks the backend to validate a short code from a link, then stores the server's user code.
+     * An explicit "not found" (404, or an error in the body) discards the code. When the server
+     * can't confirm or reject it (network failure, server error, unreadable response), the code
+     * from the link is stored rather than losing the attribution.
+     */
+    private static void validateAndStoreShortCode(Activity activity, String shortCode, String linkCompanyCode, AffiliateAssociationSource source) {
+        // Storing the same identifier is a no-op, so skip the call (it counts as a click)
+        SharedPreferences sharedPreferences = activity.getSharedPreferences("InsertAffiliate", Context.MODE_PRIVATE);
+        String existingLink = sharedPreferences.getString("referring_link", "");
+        if (existingLink != null && existingLink.equalsIgnoreCase(shortCode)) {
+            verboseLog("Short code " + shortCode + " is already stored, skipping lookup");
+            return;
+        }
+
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            String unverifiedReason;
+            String confirmedUserCode = null;
+            try {
+                URL url = new URL("https://insertaffiliate.link/V1/getDeepLinkData/" + Uri.encode(linkCompanyCode) + "/" + Uri.encode(shortCode));
+                verboseLog("Fetching deep link data from: " + url);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+
+                int responseCode = connection.getResponseCode();
+                verboseLog("Deep link data response status: " + responseCode);
+
+                if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Deep link not found. The short code '" + shortCode + "' may not exist for company '" + linkCompanyCode + "'. Not storing it.");
+                    return;
+                } else if (responseCode != HttpURLConnection.HTTP_OK) {
+                    Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching deep link data: HTTP " + responseCode);
+                    unverifiedReason = "The server could not confirm the short code";
+                } else {
+                    BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String inputLine;
+                    while ((inputLine = in.readLine()) != null) {
+                        response.append(inputLine);
+                    }
+                    in.close();
+
+                    if (response.length() == 0) {
+                        unverifiedReason = "The server returned no data";
+                    } else {
+                        JSONObject jsonResponse = new JSONObject(response.toString());
+                        verboseLog("Deep link data response: " + jsonResponse);
+
+                        if (jsonResponse.opt("error") instanceof String) {
+                            Log.e("InsertAffiliate TAG", "[Insert Affiliate] API returned error: " + jsonResponse.optString("error") + ". The short code '" + shortCode + "' was not found. Not storing it.");
+                            return;
+                        }
+
+                        JSONObject data = jsonResponse.optJSONObject("data");
+                        JSONObject deepLink = data == null ? null : data.optJSONObject("deepLink");
+                        String userCode = deepLink == null || deepLink.isNull("userCode") ? "" : deepLink.optString("userCode", "");
+                        if (userCode.isEmpty()) {
+                            unverifiedReason = "The server response did not include a user code";
+                        } else {
+                            verboseLog("User code extracted: " + userCode);
+                            confirmedUserCode = userCode;
+                            unverifiedReason = null;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e("InsertAffiliate TAG", "[Insert Affiliate] Error fetching deep link data: " + e.getMessage());
+                unverifiedReason = "Could not get a valid response from the server";
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+
+            if (confirmedUserCode != null) {
+                storeInsertAffiliateReferringLink(activity, confirmedUserCode, source);
+                return;
+            }
+
+            Log.i("InsertAffiliate TAG", "[Insert Affiliate] " + unverifiedReason + ". Storing short code '" + shortCode + "' from the link without server confirmation.");
+            storeInsertAffiliateReferringLink(activity, shortCode, source);
+        }).start();
     }
 
     /**
