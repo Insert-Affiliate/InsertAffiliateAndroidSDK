@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -108,8 +109,38 @@ final class InAppReferrals {
             string(json, "dashboardUrl"),
             integer(json, "rewardsGranted"),
             timestamp(json, "premiumUntil"),
-            rewardCodes(json)
+            rewardCodes(json),
+            integer(json, "rewardDaysEarned"),
+            earnedDisplay(json)
         );
+    }
+
+    // earnedDisplay: { cash, days }. Absent (older servers): cash only.
+    private static MyAffiliateDetails.EarnedDisplay earnedDisplay(JsonObject json) {
+        JsonObject display = object(json, "earnedDisplay");
+        if (display == null) return MyAffiliateDetails.EarnedDisplay.CASH_ONLY;
+        return new MyAffiliateDetails.EarnedDisplay(bool(display, "cash", true), bool(display, "days", false));
+    }
+
+    private static boolean bool(JsonObject json, String key, boolean fallback) {
+        if (json == null) return fallback;
+        JsonElement value = json.get(key);
+        if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isBoolean()) return fallback;
+        return value.getAsBoolean();
+    }
+
+    /**
+     * Whether the code row shows. A hidden code still shows when there is no web
+     * link, because the code is then the only thing the referrer can share.
+     */
+    static boolean shouldShowCodeRow(ReferralProgramConfig config, String deeplinkUrl) {
+        return config == null || config.isShowCode() || !isWebLink(deeplinkUrl);
+    }
+
+    /** "1 day" or "90 days": the app's unit text with {count} filled in, the number in the given locale. */
+    static String formatDays(int days, String oneUnit, String otherUnit, Locale locale) {
+        String unit = days == 1 ? oneUnit : otherUnit;
+        return unit.replace("{count}", NumberFormat.getIntegerInstance(locale).format(days));
     }
 
     /** Parses POST /me/identity: true only for a 2xx response with saved: true. */
@@ -229,7 +260,8 @@ final class InAppReferrals {
             string(json, "referralTrigger"),
             string(json, "headline"),
             string(json, "rewardText"),
-            string(json, "primaryColor")
+            string(json, "primaryColor"),
+            bool(json, "showCode", true)
         );
     }
 
